@@ -160,6 +160,74 @@
   VIS.insight_whatsapp = insight('O maior canal do mundo', 'Praticamente <b>todo brasileiro conectado</b> usa WhatsApp. Não importa o seu negócio: o seu cliente já está lá.', '');
   VIS.insight_comportamento = insight('O cliente mudou', 'Ele pesquisa, pergunta e compra pelo celular — e quer <b>resposta na hora</b>, onde ele já está.', '');
   VIS.insight_5min = insight('21× mais chances', 'de fechar negócio quando a resposta chega em <b>menos de 5 minutos</b>.', 'Estudo Lead Response Management');
+  // ---- pilares ----
+  var PILARES = {
+    pilar_velocidade: ['1º pilar', 'Velocidade', 'Quem mais vende não é quem tem o melhor preço. É quem responde primeiro: na 1ª hora, a chance de converter é até <b>7× maior</b>.', '⚡'],
+    pilar_resposta: ['2º pilar', 'Resposta assertiva', 'Mensagem automática não é atendimento — é <b>senha de fila</b>. Assertivo é resolver a dúvida, contornar a objeção e conduzir.', '🎯'],
+    pilar_qualificacao: ['3º pilar', 'Qualificação', 'Atender todos e separar o <b>curioso</b> do interessado de verdade. O seu tempo (e o do seu time) não pode ir pra curioso.', '🔍'],
+  };
+  Object.keys(PILARES).forEach(function (k) {
+    var it = PILARES[k];
+    VIS[k] = '<div class="big"><div class="big-ic">' + it[3] + '</div><div class="vtitle">' + it[0] + ' · Sistema Waz</div><h3>' + it[1] + '</h3><p>' + it[2] + '</p></div>';
+  });
+
+  // ---- demo de chat animada: as mensagens entram uma a uma conforme o Waz narra ----
+  var DEMO = [
+    { fase: 'demo_pergunta', msgs: [
+      { de: 'c', t: 'Oi! Vocês têm horário amanhã? Quanto custa?' },
+      { de: 'w', digitando: true, t: 'Oi! Temos sim 😊 O valor é R$ 180 e amanhã tenho 10h ou 16h30 livres. Prefere de manhã ou à tarde?' },
+    ]},
+    { fase: 'demo_agenda', msgs: [
+      { de: 'c', t: 'Não consigo amanhã… tem quinta?' },
+      { de: 'w', digitando: true, t: 'Tenho sim! Quinta às 11h ou às 17h. Qual fica melhor?' },
+      { de: 'c', t: 'Às 17h!' },
+      { de: 'w', t: 'Fechado ✅ Quinta, 17h. Vou te mandar um lembrete no dia.' },
+    ]},
+    { fase: 'demo_pix', msgs: [
+      { de: 'c', t: 'Quero deixar reservado!' },
+      { de: 'w', digitando: true, t: 'Perfeito! Pra garantir, o sinal é R$ 50. Segue o Pix: 🔑 squad@pix' },
+      { de: 's', t: 'Pagamento recebido · R$ 50,00' },
+      { de: 'w', t: 'Pagamento confirmado! 🎉 Sua reserva está garantida.' },
+    ]},
+    { fase: 'demo_follow', msgs: [
+      { de: 'c', t: 'Vou ver e te falo…' },
+      { de: 'sep', t: 'no dia seguinte' },
+      { de: 'w', digitando: true, t: 'Oi! Conseguiu ver? O horário de quinta ainda está disponível — quer que eu segure pra você?' },
+      { de: 'c', t: 'Quero sim! Pode marcar 🙌' },
+    ]},
+  ];
+  var demoStage = -1;
+  function demoIndex(id) { for (var i = 0; i < DEMO.length; i++) if (DEMO[i].fase === id) return i; return -1; }
+  function demoChatHtml(upto, animFrom) {
+    var h = '<div class="vpad" style="padding-bottom:8px"><div class="vtitle">Ao vivo · WhatsApp da sua empresa</div></div><div class="demo-chat" id="demo-chat">';
+    var n = 0;
+    for (var i = 0; i <= upto; i++) DEMO[i].msgs.forEach(function (m) {
+      var anim = n >= animFrom;
+      var delay = anim ? ((n - animFrom) * 900) : 0;
+      if (m.de === 'sep') { h += '<div class="dm-sep' + (anim ? ' dm-in' : '') + '" style="animation-delay:' + delay + 'ms">' + m.t + '</div>'; n++; return; }
+      if (m.de === 's') { h += '<div class="dm-sys' + (anim ? ' dm-in' : '') + '" style="animation-delay:' + delay + 'ms">💸 ' + m.t + '</div>'; n++; return; }
+      if (m.digitando && anim) h += '<div class="dm dm-w dm-typing" style="animation: dmtyping .1s forwards ' + delay + 'ms, dmhide .2s forwards ' + (delay + 720) + 'ms"><i></i><i></i><i></i></div>';
+      h += '<div class="dm ' + (m.de === 'w' ? 'dm-w' : 'dm-c') + (anim ? ' dm-in' : '') + '" style="animation-delay:' + (delay + (m.digitando && anim ? 700 : 0)) + 'ms">' + m.t + '<small>agora' + (m.de === 'w' ? ' ✓✓' : '') + '</small></div>';
+      n++;
+    });
+    return h + '</div>';
+  }
+  function showDemo(id) {
+    var idx = demoIndex(id); if (idx < 0) return;
+    var animFrom = 0;
+    if (demoStage >= 0 && demoStage < idx && visual.classList.contains('show') && document.getElementById('demo-chat')) {
+      animFrom = 0; for (var i = 0; i <= demoStage; i++) animFrom += DEMO[i].msgs.length;
+    } else if (demoStage === idx) return;
+    demoStage = idx;
+    visual.innerHTML = demoChatHtml(idx, animFrom);
+    visual.classList.add('show'); visual.classList.remove('tall'); stage.classList.remove('compact');
+    var box = document.getElementById('demo-chat');
+    if (box) setTimeout(function () { box.scrollTop = box.scrollHeight; }, 60);
+    var per = 900, count = DEMO[idx].msgs.length;
+    for (var k = 1; k <= count; k++) (function (k) { setTimeout(function () { var b = document.getElementById('demo-chat'); if (b) b.scrollTop = b.scrollHeight; }, k * per + 300); })(k);
+    fitSlot(visual);
+  }
+
   VIS.comparativo_sdr = cmpSlide(false);
   VIS.comparativo_waz = cmpSlide(true);
 
@@ -180,6 +248,8 @@
   }
   function showVisual(id) { queueVisual(id); }
   function showVisualNow(id) {
+    if (id && id.indexOf('demo_') === 0) { hideOptions(); pendingVisual = null; showDemo(id); return; }
+    demoStage = -1;
     if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); stage.classList.remove('compact'); pendingVisual = null; return; }
     if (!options.classList.contains('hidden') && !spokeSinceOptions) { pendingVisual = id; return; } // opções têm prioridade até a pessoa responder (clique, texto ou voz)
     if (spokeSinceOptions) hideOptions();

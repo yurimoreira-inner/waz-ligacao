@@ -92,6 +92,22 @@
   .ins .ins-big { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--green-dark); margin: 4px 0 8px; line-height: 1.1; }
   .ins p b { color: var(--ink); } .ins small { display: block; margin-top: 10px; font-size: 11px; color: var(--muted2); }
   .clients { margin: 10px 0 0; font-size: 12.5px; font-weight: 600; color: var(--ink); } .clients span { font-size: 10px; letter-spacing: .08em; color: var(--muted2); margin-right: 6px; }
+  .demo-chat { background: #e5ddd5 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" opacity="0.06"><circle cx="30" cy="30" r="1.5"/></svg>'); border-radius: 0 0 18px 18px; padding: 12px; max-height: 46dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+  .dm { max-width: 78%; padding: 8px 10px; border-radius: 10px; font-size: 13.5px; line-height: 1.35; box-shadow: 0 1px 1px rgba(0,0,0,.12); position: relative; }
+  .dm small { display: block; font-size: 9.5px; color: #667781; text-align: right; margin-top: 3px; }
+  .dm-c { background: #fff; align-self: flex-start; border-top-left-radius: 2px; }
+  .dm-w { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 2px; }
+  .dm-sys { align-self: center; background: #fff7d6; border: 1px solid #f2e3a1; color: #6d5a00; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 999px; }
+  .dm-sep { align-self: center; background: #d5e0e6; color: #4a5b66; font-size: 10.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+  .dm-in, .dm-sys.dm-in, .dm-sep.dm-in { opacity: 0; animation: dmin .4s ease-out forwards; }
+  @keyframes dmin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .dm-typing { opacity: 0; animation: dmtyping .1s forwards; display: inline-flex; gap: 4px; padding: 10px 12px; }
+  .dm-typing i { width: 6px; height: 6px; border-radius: 50%; background: #93a5ad; animation: dmdot 1s infinite; }
+  .dm-typing i:nth-child(2) { animation-delay: .15s; } .dm-typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes dmdot { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+  @keyframes dmtyping { to { opacity: 1; } }
+  @keyframes dmhide { to { opacity: 0; max-height: 0; padding: 0; margin: -4px 0 0; overflow: hidden; } }
+  .dm-typing { max-height: 40px; }
   .crm-img { max-height: 34dvh; object-fit: cover; object-position: top; }
   .cal-wrap { display: flex; flex-direction: column; height: 100%; } .cal-inline { flex: 1; min-height: 0; overflow-y: auto; } .cal-inline > * { height: 100%; } .cal-fallback { display: block; text-align: center; font-size: 12px; color: var(--muted2); padding: 6px 0 8px; flex: 0 0 auto; }
   /* modo compacto: quando o calendário está na tela, o topo encolhe pra dar espaço */
@@ -242,6 +258,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608231809" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608231904" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>
