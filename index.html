@@ -59,11 +59,11 @@
   .avatar-wrap { position: relative; width: 112px; height: 112px; margin: 10px auto 10px; }
   .avatar { width: 112px; height: 112px; border-radius: 50%; overflow: hidden; background: #d9dcdc url('waz-face.png') center/cover no-repeat; border: 4px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.1); position: relative; z-index: 2; transform: translateZ(0); }
   .face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--green); opacity: 0; }
+  .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--green); opacity: 0; }
   .speaking .ring { animation: ring 2s ease-out infinite; }
   .speaking .ring:nth-child(2) { animation-delay: .65s; }
-  .speaking .ring:nth-child(3) { display: none; }
-  @keyframes ring { 0% { transform: scale(1); opacity: .35; } 100% { transform: scale(1.28); opacity: 0; } }
+  .speaking .ring:nth-child(3) { animation-delay: 1.3s; }
+  @keyframes ring { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(1.55); opacity: 0; } }
   .bars { display: none; gap: 3px; justify-content: center; height: 16px; align-items: center; margin-bottom: 8px; visibility: hidden; }
   .speaking .bars { visibility: visible; }
   .bars i { width: 3px; height: 6px; background: var(--green); border-radius: 2px; animation: bar .8s ease-in-out infinite; }
@@ -73,7 +73,7 @@
   .caption { text-align: center; font-size: 21px; line-height: 1.3; font-weight: 600; letter-spacing: -0.005em; height: 62px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: var(--ink); padding: 0 6px; }
   .caption > span { display: block; white-space: normal; text-wrap: balance; max-width: 26ch; }
   .caption em { font-style: normal; display: inline-block; }
-  .caption em.new { animation: wordin .55s cubic-bezier(.25,.6,.3,1) both; }
+  .caption em.new { animation: wordin .55s cubic-bezier(.25,.6,.3,1) both; color: var(--green-dark); font-weight: 700; }
   @keyframes wordin { from { opacity: 0; transform: translateY(3px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
   .caption b { color: var(--ink); font-weight: 600; }
   .caption.status { color: var(--muted2); font-weight: 500; font-size: 15px; }
@@ -262,6 +262,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608232001" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608232032" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>
