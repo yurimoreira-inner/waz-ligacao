@@ -283,17 +283,22 @@
   function setupAnalyser() {
     analyser = outCtx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.5;
     anBuf = new Uint8Array(analyser.fftSize);
+    // Compressor nivelador: mantém o volume percebido constante entre falas
+    var comp = outCtx.createDynamicsCompressor();
+    comp.threshold.value = -22; comp.knee.value = 18; comp.ratio.value = 3.5; comp.attack.value = 0.01; comp.release.value = 0.22;
+    var makeup = outCtx.createGain(); makeup.gain.value = 1.15;
+    analyser.disconnect && analyser.disconnect();
     // Saída via elemento <audio> (categoria "mídia"): toca no iPhone mesmo com a chave no silencioso
     // e não depende do microfone estar ativo. Fallback: destino direto do AudioContext.
     try {
       mediaDest = outCtx.createMediaStreamDestination();
-      analyser.connect(mediaDest);
+      analyser.connect(comp); comp.connect(makeup); makeup.connect(mediaDest);
       audioEl = document.getElementById('wazAudio') || document.createElement('audio');
       audioEl.id = 'wazAudio'; audioEl.setAttribute('playsinline', ''); audioEl.autoplay = true; audioEl.style.display = 'none';
       if (!audioEl.parentNode) document.body.appendChild(audioEl);
       audioEl.srcObject = mediaDest.stream;
-      var pr = audioEl.play(); if (pr && pr.catch) pr.catch(function () { analyser.connect(outCtx.destination); });
-    } catch (e) { analyser.connect(outCtx.destination); }
+      var pr = audioEl.play(); if (pr && pr.catch) pr.catch(function () { makeup.disconnect(); makeup.connect(outCtx.destination); });
+    } catch (e) { try { analyser.connect(comp); comp.connect(makeup); makeup.connect(outCtx.destination); } catch (e2) { analyser.connect(outCtx.destination); } }
   }
   function outLevel() {
     if (!analyser) return 0;
@@ -304,6 +309,7 @@
   function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; visQueue = []; visShownInTurn = 0; visTurnTotal = 0; turnLive = false; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
   // ---------- rosto fixo; só as ondas indicam a fala ----------
+  var wasSpeaking = false;
   (function tick(now) {
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
