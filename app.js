@@ -3,7 +3,7 @@
   'use strict';
   var script = document.currentScript;
   var ENDPOINT = (script && script.dataset.endpoint) || 'http://localhost:8787';
-  var MIC_RATE = 16000, OUT_RATE = 24000, ECHO_GATE = 0.035, VOICE_RATE = 0.96; // leve desaceleração da fala
+  var MIC_RATE = 16000, OUT_RATE = 24000, ECHO_GATE = 0.035, VOICE_RATE = 0.93; // fala mais calma (sem perder o timbre)
 
   var $ = function (id) { return document.getElementById(id); };
   var hero = $('hero'), stage = $('stage'), caption = $('caption'), visual = $('visual'),
@@ -404,7 +404,7 @@
   // Legenda sincronizada com o áudio, exibida por FRASE (quebra só em pontuação).
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
-  function fixName(t) { return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
+  function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
   var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.25; // atraso pequeno: o texto costuma chegar antes do som
   function feedCaption(chunk) {
     if (!outCtx) return;
