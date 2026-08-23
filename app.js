@@ -315,21 +315,33 @@
     nv.classList.add('on'); old.classList.remove('on');
     setTimeout(function () { old.pause(); }, 300);
   }
+  // Expressões espaçadas: o vídeo fica parado num quadro e, de tempos em tempos
+  // (e nas viradas de fala), roda uma rajada curta pra trocar a expressão.
+  var burstUntil = 0, lastBurst = 0, burstEvery = 6000;
+  function expressionBurst(now, seek) {
+    var v = vids[vi];
+    if (!v || v.readyState < 2) { lastBurst = now - burstEvery + 1200; return; } // tenta de novo em ~1,2 s
+    if (seek) { try { v.currentTime = Math.random() * Math.max(0.5, (v.duration || 10) - 1.5); } catch (e) {} }
+    v.playbackRate = 1;
+    var pr = v.play(); if (pr && pr.catch) pr.catch(function () {});
+    burstUntil = now + 750 + Math.random() * 450;
+    lastBurst = now;
+    burstEvery = 5000 + Math.random() * 3000;
+    window.__bursts = (window.__bursts || 0) + 1;
+  }
   function driveMouth(now) {
     var v = vids[vi];
-    var raw = outLevel();
-    lvl = lvl * 0.6 + raw * 0.4;
-    // Enquanto há fala agendada, o vídeo NUNCA fica parado: energia alta = boca rápida, energia baixa = câmera lenta.
-    if (v.paused && v.readyState >= 2) v.play().catch(function () {});
-    v.playbackRate = Math.max(0.55, Math.min(1.35, 0.62 + lvl * 3.2));
-    mouthOn = true;
+    if (now < burstUntil) return;
+    if (!v.paused) v.pause();
+    if (now - lastBurst >= burstEvery) expressionBurst(now, true);
   }
   (function tick(now) {
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
-    if (sp !== wasSpeaking) { wasSpeaking = sp; if (sp) switchFace(); else { mouthOn = false; setTimeout(function () { if (!isSpeaking()) vids[vi].pause(); }, 250); turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
+    if (sp !== wasSpeaking) { wasSpeaking = sp; if (sp) expressionBurst(now || performance.now(), true); else { setTimeout(function () { if (!isSpeaking()) vids[vi].pause(); }, 250); turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
     if (sp) driveMouth(now || performance.now());
     updateMicChip(now || performance.now());
+    if (waitingReply && Date.now() - waitingReply > 14000 && ws && ws.readyState === 1) { waitingReply = 0; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
     renderCaption(); requestAnimationFrame(tick);
   })(performance.now());
 
@@ -360,7 +372,7 @@
     for (var j = 0; j < n; j++) { turnWords[j].t = start + (acc / total) * span + CAP_LAG; acc += weights[j]; }
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
-  var CAP_WORDS = 7, turnShownWords = 0;
+  var CAP_WORDS = 10, turnShownWords = 0;
   function renderCaption() {
     if (!outCtx || !capWords.length) return;
     var now = outCtx.currentTime, changed = false;
@@ -458,6 +470,7 @@
         curOut += fixName(sc.outputTranscription.text); feedCaption(sc.outputTranscription.text);
       }
       (sc.modelTurn && sc.modelTurn.parts || []).forEach(function (p) { if (p.inlineData && p.inlineData.data) playChunk(p.inlineData.data); });
+      if (sc.modelTurn) waitingReply = 0;
       if (sc.turnComplete) {
         if (curOut) { push('waz', curOut); curOut = ''; } capLastT = 0;
         if (transcript.length % 4 === 0) track('transcricao', { transcricao: transcript }); // salva a transcrição parcial (abandonos)
@@ -496,9 +509,10 @@
   }
   function push(role, text) { transcript.push({ role: role, text: fixName(text) }); }
 
+  var waitingReply = 0;
   function sendText(payload, shown) {
     if (!ws || ws.readyState !== 1) return;
-    userAnswered = true;
+    userAnswered = true; waitingReply = Date.now();
     stopPlayback(); curOut = ''; resetCaption();
     push('cliente', shown || payload);
     ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: payload }] }], turnComplete: true } }));

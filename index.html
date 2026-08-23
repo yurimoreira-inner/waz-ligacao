@@ -33,7 +33,7 @@
   h1 small { display: block; font-size: 0.6em; font-weight: 700; margin-top: 6px; }
   .sub { text-wrap: balance; font-size: clamp(16px, 4.2vw, 19px); line-height: 1.35; color: #1f2937; max-width: 520px; margin: 10px 0 0; }
   .divider { width: min(480px, 85vw); height: 1px; background: var(--line); margin: 0 0 14px; }
-  .note { text-wrap: balance; color: var(--muted2); font-weight: 600; font-size: 14px; max-width: 480px; margin: 0 0 14px; }
+  .note { text-wrap: balance; color: var(--muted); font-weight: 600; font-size: 16px; max-width: 480px; margin: 0 0 14px; }
   .cta { background: var(--green); color: #fff; border: 4px solid #c9ebd4; border-radius: 999px; padding: 17px 44px;
     font-size: 19px; font-weight: 700; display: inline-flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px rgba(22,163,74,.25); }
   .cta:active { transform: scale(.98); }
@@ -71,11 +71,11 @@
   .bars i:nth-child(2) { animation-delay: .1s; } .bars i:nth-child(3) { animation-delay: .2s; } .bars i:nth-child(4) { animation-delay: .3s; } .bars i:nth-child(5) { animation-delay: .4s; }
   @keyframes bar { 0%,100% { height: 5px; } 50% { height: 16px; } }
 
-  .caption { text-align: center; font-size: 24px; line-height: 1.18; font-weight: 700; letter-spacing: -0.01em; height: 62px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: var(--ink); padding: 0 6px; }
-  .caption > span { display: block; white-space: normal; text-wrap: balance; max-width: 22ch; }
+  .caption { text-align: center; font-size: 21px; line-height: 1.3; font-weight: 600; letter-spacing: -0.005em; height: 62px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: var(--ink); padding: 0 6px; }
+  .caption > span { display: block; white-space: normal; text-wrap: balance; max-width: 26ch; }
   .caption em { font-style: normal; display: inline-block; }
-  .caption em.new { animation: wordin .16s ease-out; color: var(--green-dark); }
-  @keyframes wordin { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+  .caption em.new { animation: wordin .55s cubic-bezier(.25,.6,.3,1) both; }
+  @keyframes wordin { from { opacity: 0; transform: translateY(3px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
   .caption b { color: var(--ink); font-weight: 600; }
   .caption.status { color: var(--muted2); font-weight: 500; font-size: 15px; }
   .you { text-align: center; font-size: 13px; color: var(--muted2); margin-top: 6px; min-height: 18px; }
@@ -192,11 +192,10 @@
   </div>
   <div class="hero-mid">
     <h1>Seu melhor<br /><span class="g">Vendedor de IA</span><small>disponível 24 horas por dia</small></h1>
-    <p class="sub">Transforme conversas no WhatsApp em mais vendas e agendamento para o seu negócio.</p>
   </div>
   <div class="hero-bot">
     <div class="divider"></div>
-    <p class="note">Converse agora com o Waz e veja ao vivo como ele vende pelo WhatsApp.</p>
+    <p class="note">Converse agora com o Waz e veja ao vivo como ele pode vender por você no WhatsApp.</p>
     <button class="cta" id="start">Começar
       <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
     </button>
@@ -244,6 +243,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608231648" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608231700" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>
