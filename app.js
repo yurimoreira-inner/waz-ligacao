@@ -180,7 +180,7 @@
   }
   function showVisual(id) { queueVisual(id); }
   function showVisualNow(id) {
-    if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); pendingVisual = null; return; }
+    if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); stage.classList.remove('compact'); pendingVisual = null; return; }
     if (!options.classList.contains('hidden') && !spokeSinceOptions) { pendingVisual = id; return; } // opções têm prioridade até a pessoa responder (clique, texto ou voz)
     if (spokeSinceOptions) hideOptions();
     visual.classList.remove('show');
@@ -192,7 +192,7 @@
         visual.querySelectorAll('.dots i').forEach(function (d, k) { d.classList.toggle('on', k === i); });
       });
       visual.classList.add('show');
-      if (id === 'agendar') { visual.classList.add('tall'); mountCal(); } else { visual.classList.remove('tall'); fitSlot(visual); }
+      if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
     }, 150);
   }
 
@@ -214,7 +214,7 @@
     if (ob) { ob.addEventListener('click', function () { if (oi.value.trim()) answer(oi.value.trim()); }); oi.addEventListener('keydown', function (e) { if (e.key === 'Enter' && oi.value.trim()) answer(oi.value.trim()); }); }
   }
   function showConfirm(d) {
-    leadData = { nome: d.nome || '', email: d.email || '', whatsapp: (d.whatsapp || '').replace(/\D/g, ''), empresa: d.empresa || '' };
+    leadData = { nome: d.nome || leadData.nome || '', email: d.email || leadData.email || '', whatsapp: ((d.whatsapp || leadData.whatsapp || '') + '').replace(/\D/g, ''), empresa: d.empresa || leadData.empresa || '' };
     visual.classList.remove('show');
     options.innerHTML = '<div class="q">Confere se está tudo certo:</div>' +
       '<div class="fields">' +
@@ -308,7 +308,9 @@
   var vids = [$('vid1'), $('vid2')], vi = 0, wasSpeaking = false, mouthOn = false, quietSince = 0, lvl = 0, pausedSince = 0;
   vids[0].classList.add('on');
   function switchFace() {
-    var old = vids[vi]; vi = 1 - vi; var nv = vids[vi];
+    var old = vids[vi], cand = vids[1 - vi];
+    if (cand.readyState < 2) { old.play().catch(function () {}); return; } // outro vídeo ainda carregando: segue com o atual
+    vi = 1 - vi; var nv = vids[vi];
     try { nv.currentTime = Math.random() * Math.max(0, (nv.duration || 10) - 3); } catch (e) {}
     nv.classList.add('on'); old.classList.remove('on');
     setTimeout(function () { old.pause(); }, 300);
@@ -316,19 +318,16 @@
   function driveMouth(now) {
     var v = vids[vi];
     var raw = outLevel();
-    lvl = lvl * 0.6 + raw * 0.4;                       // suaviza
-    var ON = 0.02, OFF = 0.008;
-    if (!mouthOn && lvl > ON) { mouthOn = true; v.play().catch(function () {}); }
-    else if (mouthOn && lvl < OFF) { if (!quietSince) quietSince = now; if (now - quietSince > 140) { mouthOn = false; v.pause(); } }
-    if (lvl >= OFF) quietSince = 0;
-    if (mouthOn) v.playbackRate = Math.max(0.85, Math.min(1.3, 0.85 + lvl * 2.5));
-    // garantia: se há áudio tocando e o vídeo está parado há mais de 350 ms, anima assim mesmo
-    if (!mouthOn && v.paused) { if (!pausedSince) pausedSince = now; if (now - pausedSince > 350 && lvl > 0.004) { v.playbackRate = 0.9; v.play().catch(function () {}); mouthOn = true; } } else pausedSince = 0;
+    lvl = lvl * 0.6 + raw * 0.4;
+    // Enquanto há fala agendada, o vídeo NUNCA fica parado: energia alta = boca rápida, energia baixa = câmera lenta.
+    if (v.paused && v.readyState >= 2) v.play().catch(function () {});
+    v.playbackRate = Math.max(0.55, Math.min(1.35, 0.62 + lvl * 3.2));
+    mouthOn = true;
   }
   (function tick(now) {
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
-    if (sp !== wasSpeaking) { wasSpeaking = sp; if (sp) switchFace(); else { mouthOn = false; vids[vi].pause(); turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
+    if (sp !== wasSpeaking) { wasSpeaking = sp; if (sp) switchFace(); else { mouthOn = false; setTimeout(function () { if (!isSpeaking()) vids[vi].pause(); }, 250); turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
     if (sp) driveMouth(now || performance.now());
     updateMicChip(now || performance.now());
     renderCaption(); requestAnimationFrame(tick);
@@ -471,7 +470,7 @@
         if (fc.name === 'mostrar_visual') { track('visual', { id: fc.args && fc.args.id }); showVisual(fc.args && fc.args.id); }
         else if (fc.name === 'perguntar_opcoes') showOptions(fc.args || {});
         else if (fc.name === 'confirmar_dados') showConfirm(fc.args || {});
-        else if (fc.name === 'registrar_contexto') { Object.assign(leadData, { empresa: (fc.args && fc.args.empresa) || leadData.empresa, nome: (fc.args && fc.args.nome) || leadData.nome }); track('contexto', fc.args || {}); }
+        else if (fc.name === 'registrar_contexto') { var a = fc.args || {}; leadData.empresa = a.empresa || leadData.empresa; leadData.nome = a.nome || leadData.nome; if (a.whatsapp) leadData.whatsapp = String(a.whatsapp).replace(/\D/g, ''); if (a.email) leadData.email = a.email; track('contexto', a); }
         else if (fc.name === 'registrar_lead') sendLead(fc.args || {});
         ws.send(JSON.stringify({ toolResponse: { functionResponses: [{ id: fc.id, name: fc.name, response: { result: 'ok' } }] } }));
       });
@@ -524,7 +523,9 @@
   sendBtn.addEventListener('click', sendTyped);
   textIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendTyped(); });
 
+  function endCompactOff() { stage.classList.remove('compact'); }
   function end(fromServer) {
+    endCompactOff();
     if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript });
     active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
