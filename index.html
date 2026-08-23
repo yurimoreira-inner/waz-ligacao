@@ -58,13 +58,12 @@
   .live .lv b { width: 3px; height: 4px; background: var(--green); border-radius: 2px; transition: height .08s; }
   .avatar-wrap { position: relative; width: 112px; height: 112px; margin: 10px auto 10px; }
   .avatar { width: 112px; height: 112px; border-radius: 50%; overflow: hidden; background: #e8f3ec url('waz-rosto.png') center 35%/150% no-repeat; border: 4px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.1); position: relative; z-index: 2; transform: translateZ(0); }
-  .face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; transform: translateY(6%) scale(1.35); transform-origin: 50% 22%; opacity: 0; transition: opacity .25s; }
-  .face.on { opacity: 1; }
-  .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--green); opacity: 0; }
-  .speaking .ring { animation: ring 1.4s ease-out infinite; }
-  .speaking .ring:nth-child(2) { animation-delay: .45s; }
-  .speaking .ring:nth-child(3) { animation-delay: .9s; }
-  @keyframes ring { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.7); opacity: 0; } }
+  .face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; transform: scale(1.12); }
+  .ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--green); opacity: 0; }
+  .speaking .ring { animation: ring 2s ease-out infinite; }
+  .speaking .ring:nth-child(2) { animation-delay: .65s; }
+  .speaking .ring:nth-child(3) { display: none; }
+  @keyframes ring { 0% { transform: scale(1); opacity: .35; } 100% { transform: scale(1.28); opacity: 0; } }
   .bars { display: none; gap: 3px; justify-content: center; height: 16px; align-items: center; margin-bottom: 8px; visibility: hidden; }
   .speaking .bars { visibility: visible; }
   .bars i { width: 3px; height: 6px; background: var(--green); border-radius: 2px; animation: bar .8s ease-in-out infinite; }
@@ -214,10 +213,7 @@
 
   <div class="avatar-wrap" id="avatar">
     <span class="ring"></span><span class="ring"></span><span class="ring"></span>
-    <div class="avatar">
-      <video id="vid1" class="face" src="waz-fala-1.mp4" muted playsinline loop preload="auto"></video>
-      <video id="vid2" class="face" src="waz-fala-2.mp4" muted playsinline loop preload="auto"></video>
-    </div>
+    <div class="avatar"><img class="face on" src="waz-rosto.png" alt="Waz" /></div>
   </div>
   <div class="live" id="live"><i></i><span>Conectando</span><em class="lv"><b></b><b></b><b></b></em></div>
   <div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i></div>
@@ -243,6 +239,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608231700" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608231713" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>

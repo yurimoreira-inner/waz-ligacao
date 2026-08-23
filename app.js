@@ -303,43 +303,11 @@
   }
   function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; visQueue = []; visShownInTurn = 0; visTurnTotal = 0; turnLive = false; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
-  // ---------- vídeo do rosto dirigido pela energia da voz ----------
-  // A boca se mexe só quando há voz (pausa nas pausas) e a velocidade acompanha a intensidade.
-  var vids = [$('vid1'), $('vid2')], vi = 0, wasSpeaking = false, mouthOn = false, quietSince = 0, lvl = 0, pausedSince = 0;
-  vids[0].classList.add('on');
-  function switchFace() {
-    var old = vids[vi], cand = vids[1 - vi];
-    if (cand.readyState < 2) { old.play().catch(function () {}); return; } // outro vídeo ainda carregando: segue com o atual
-    vi = 1 - vi; var nv = vids[vi];
-    try { nv.currentTime = Math.random() * Math.max(0, (nv.duration || 10) - 3); } catch (e) {}
-    nv.classList.add('on'); old.classList.remove('on');
-    setTimeout(function () { old.pause(); }, 300);
-  }
-  // Expressões espaçadas: o vídeo fica parado num quadro e, de tempos em tempos
-  // (e nas viradas de fala), roda uma rajada curta pra trocar a expressão.
-  var burstUntil = 0, lastBurst = 0, burstEvery = 6000;
-  function expressionBurst(now, seek) {
-    var v = vids[vi];
-    if (!v || v.readyState < 2) { lastBurst = now - burstEvery + 1200; return; } // tenta de novo em ~1,2 s
-    if (seek) { try { v.currentTime = Math.random() * Math.max(0.5, (v.duration || 10) - 1.5); } catch (e) {} }
-    v.playbackRate = 1;
-    var pr = v.play(); if (pr && pr.catch) pr.catch(function () {});
-    burstUntil = now + 750 + Math.random() * 450;
-    lastBurst = now;
-    burstEvery = 5000 + Math.random() * 3000;
-    window.__bursts = (window.__bursts || 0) + 1;
-  }
-  function driveMouth(now) {
-    var v = vids[vi];
-    if (now < burstUntil) return;
-    if (!v.paused) v.pause();
-    if (now - lastBurst >= burstEvery) expressionBurst(now, true);
-  }
+  // ---------- rosto fixo; só as ondas indicam a fala ----------
   (function tick(now) {
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
-    if (sp !== wasSpeaking) { wasSpeaking = sp; if (sp) expressionBurst(now || performance.now(), true); else { setTimeout(function () { if (!isSpeaking()) vids[vi].pause(); }, 250); turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
-    if (sp) driveMouth(now || performance.now());
+    if (sp !== wasSpeaking) { wasSpeaking = sp; if (!sp) { turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
     updateMicChip(now || performance.now());
     if (waitingReply && Date.now() - waitingReply > 14000 && ws && ws.readyState === 1) { waitingReply = 0; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
     renderCaption(); requestAnimationFrame(tick);
@@ -412,7 +380,6 @@
     if (active) return; active = true; leadSent = false; transcript = [];
     track('start_click');
     hero.classList.add('hidden'); stage.classList.add('on'); window.scrollTo(0, 0);
-    vids.forEach(function (v) { v.play().then(function () { v.pause(); v.currentTime = 0; }).catch(function () {}); });
     outCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: OUT_RATE });
     if (outCtx.state !== 'running') outCtx.resume().catch(function () {});
     setupAnalyser();
