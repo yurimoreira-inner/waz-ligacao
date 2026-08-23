@@ -3,7 +3,7 @@
   'use strict';
   var script = document.currentScript;
   var ENDPOINT = (script && script.dataset.endpoint) || 'http://localhost:8787';
-  var MIC_RATE = 16000, OUT_RATE = 24000, ECHO_GATE = 0.035;
+  var MIC_RATE = 16000, OUT_RATE = 24000, ECHO_GATE = 0.035, VOICE_RATE = 0.96; // leve desaceleração da fala
 
   var $ = function (id) { return document.getElementById(id); };
   var hero = $('hero'), stage = $('stage'), caption = $('caption'), visual = $('visual'),
@@ -346,7 +346,7 @@
     if (!outCtx) return;
     if (outCtx.state === 'suspended') outCtx.resume().catch(function () {});
     var f = fromB64(data), buf = outCtx.createBuffer(1, f.length, OUT_RATE); buf.getChannelData(0).set(f);
-    var src = outCtx.createBufferSource(); src.buffer = buf; src.connect(analyser || outCtx.destination);
+    var src = outCtx.createBufferSource(); src.buffer = buf; src.playbackRate.value = VOICE_RATE; src.connect(analyser || outCtx.destination);
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
       playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
@@ -356,7 +356,7 @@
         spokeSinceOptions = false;
       }
     }
-    src.start(playHead); playHead += buf.duration; sources.push(src);
+    src.start(playHead); playHead += buf.duration / VOICE_RATE; sources.push(src);
     retimeCaption();
     src.onended = function () { sources = sources.filter(function (s) { return s !== src; }); };
   }
