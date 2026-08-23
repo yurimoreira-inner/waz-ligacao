@@ -17,8 +17,13 @@
     ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ttclid'].forEach(function (k) { if (q.get(k)) a[k] = q.get(k); });
     try { var saved = JSON.parse(localStorage.getItem('waz_attr') || '{}'); a = Object.assign({}, saved, a); localStorage.setItem('waz_attr', JSON.stringify(a)); } catch (e) {}
     a.referrer = document.referrer || ''; a.pagina = location.href; a.device = /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop'; a.lang = navigator.language;
+    try { a.hora_local = new Date().toLocaleString('pt-BR', { hour12: false }); a.fuso = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
     return a;
   })();
+  // localização aproximada por IP (estado/cidade) — sem pedir permissão; falha silenciosa
+  fetch('https://ipwho.is/?fields=region,region_code,city,country_code').then(function (r) { return r.json(); }).then(function (g) {
+    if (g && g.region) { ATTR.estado = g.region_code || g.region; ATTR.cidade = g.city || ''; ATTR.pais = g.country_code || ''; track('localizacao', { estado: ATTR.estado, cidade: ATTR.cidade }); }
+  }).catch(function () {});
   function track(evento, dados) {
     var body = JSON.stringify({ sid: SID, evento: evento, dados: dados || {}, attr: ATTR, ts: new Date().toISOString() });
     try { fetch(ENDPOINT + '/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true, credentials: 'omit' }).catch(function () {}); } catch (e) {}
@@ -85,9 +90,10 @@
       '<ul><li>O Waz completo, sem módulos escondidos</li><li>Entregue pronto e funcionando em até 7 dias</li><li>4 mentorias em grupo por mês</li><li>Todas as atualizações futuras inclusas</li></ul>' +
       '<div class="guar">Garantia de resultado · reembolso de 100%, sem burocracia</div></div>',
     quem_esta_por_tras: '<img class="full" src="inner-ai.png" alt="Time Inner AI" /><div class="vpad"><div class="vtitle">Squad.com · grupo Inner AI</div>' +
-      '<div class="stats"><div><b>+1M</b><span>usuários atendidos</span></div><div><b>R$ 50M</b><span>captados em investimento</span></div><div><b>#1</b><span>plataforma de IA do Brasil</span></div></div>' +
+      '<div class="stats"><div><b>+3 anos</b><span>em inteligência artificial</span></div><div><b>+1M</b><span>usuários atendidos</span></div><div><b>#1</b><span>plataforma de IA do Brasil</span></div></div>' +
+      '<p class="clients"><span>ATENDEMOS</span> Mercado Livre · Movida · Embraer · Brigadayros · Brasil Grãos</p>' +
       '<div class="media"><span>NA MÍDIA</span><img src="midia-1.svg" alt=""><img src="midia-2.svg" alt=""><img src="midia-3.svg" alt=""><img src="midia-4.svg" alt=""></div>' +
-      '<p style="font-size:12px;color:#5c6664;margin:10px 0 0">Clientes como Brigadayros e Brasil Grãos · SOC II · Criptografia de nível bancário · Seus dados nunca treinam modelos.</p></div>',
+      '<p style="font-size:12px;color:#5c6664;margin:10px 0 0">R$ 50M captados · SOC II · Criptografia de nível bancário · Seus dados nunca treinam modelos.</p></div>',
     depoimentos: carousel('O que dizem nossos clientes', [
       '<div class="quote">“O Squad não só automatizou nosso atendimento. Ele destravou o crescimento da empresa.”<footer>Júlia Nussbacker · CEO &amp; Founder, Brigadayros</footer></div>',
       '<div class="quote">“O cliente não consegue perceber que tá falando com uma IA. Realmente é um vendedor.”<footer>Ariane Lima · Gerente Comercial, Brasil Grãos</footer></div>',
@@ -149,10 +155,31 @@
 
   FKEYS.forEach(function (k, i) { VIS['funcao_' + k] = funcaoSlide(i); });
   CRM_ITENS.forEach(function (c) { VIS[c[0]] = crmSlide(c[0]); });
+  function insight(big, small, src) { return '<div class="big ins"><div class="vtitle">Você sabia?</div><div class="ins-big">' + big + '</div><p>' + small + '</p>' + (src ? '<small>' + src + '</small>' : '') + '</div>'; }
+  VIS.insight_magalu = insight('R$ 100 milhões', 'foi o que a <b>Magazine Luiza</b> faturou pelo WhatsApp, com conversão <b>3× maior</b> que nos outros canais.', 'Magazine Luiza · resultados divulgados');
+  VIS.insight_whatsapp = insight('O maior canal do mundo', 'Praticamente <b>todo brasileiro conectado</b> usa WhatsApp. Não importa o seu negócio: o seu cliente já está lá.', '');
+  VIS.insight_comportamento = insight('O cliente mudou', 'Ele pesquisa, pergunta e compra pelo celular — e quer <b>resposta na hora</b>, onde ele já está.', '');
+  VIS.insight_5min = insight('21× mais chances', 'de fechar negócio quando a resposta chega em <b>menos de 5 minutos</b>.', 'Estudo Lead Response Management');
   VIS.comparativo_sdr = cmpSlide(false);
   VIS.comparativo_waz = cmpSlide(true);
 
-  function showVisual(id) {
+  // Vários slides na mesma fala: em vez de pular todos, distribui ao longo das palavras daquela fala.
+  var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false;
+  function queueVisual(id) {
+    if (id === 'nenhum') { visQueue = []; showVisualNow(id); return; }
+    visQueue.push(id);
+    // fora de uma fala (ou primeiro slide da fala): mostra já; os demais esperam a fala avançar
+    if (!turnLive || visShownInTurn === 0) { showVisualNow(visQueue.shift()); visShownInTurn = 1; }
+    visTurnTotal = visShownInTurn + visQueue.length;
+  }
+  function pumpVisualQueue(shownWords) {
+    if (!visQueue.length) return;
+    var total = turnWords.length || 1;
+    var nextAt = Math.floor((visShownInTurn / visTurnTotal) * total);
+    if (shownWords >= nextAt) { showVisualNow(visQueue.shift()); visShownInTurn++; }
+  }
+  function showVisual(id) { queueVisual(id); }
+  function showVisualNow(id) {
     if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); pendingVisual = null; return; }
     if (!options.classList.contains('hidden') && !spokeSinceOptions) { pendingVisual = id; return; } // opções têm prioridade até a pessoa responder (clique, texto ou voz)
     if (spokeSinceOptions) hideOptions();
@@ -241,7 +268,8 @@
     var src = outCtx.createBufferSource(); src.buffer = buf; src.connect(analyser || outCtx.destination);
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
-      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false;
+      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
+      turnLive = true; visShownInTurn = visQueue.length ? 0 : 0; if (visQueue.length) { showVisualNow(visQueue.shift()); visShownInTurn = 1; } visTurnTotal = visShownInTurn + visQueue.length; // 1º slide da fala entra agora; o resto ao longo das palavras
       if (spokeSinceOptions) { // a pessoa respondeu por voz: a pergunta anterior já era
         if (!options.classList.contains('hidden')) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
         spokeSinceOptions = false;
@@ -273,11 +301,11 @@
     var sum = 0; for (var i = 0; i < anBuf.length; i++) { var v = (anBuf[i] - 128) / 128; sum += v * v; }
     return Math.sqrt(sum / anBuf.length);
   }
-  function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
+  function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; visQueue = []; visShownInTurn = 0; visTurnTotal = 0; turnLive = false; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
   // ---------- vídeo do rosto dirigido pela energia da voz ----------
   // A boca se mexe só quando há voz (pausa nas pausas) e a velocidade acompanha a intensidade.
-  var vids = [$('vid1'), $('vid2')], vi = 0, wasSpeaking = false, mouthOn = false, quietSince = 0, lvl = 0;
+  var vids = [$('vid1'), $('vid2')], vi = 0, wasSpeaking = false, mouthOn = false, quietSince = 0, lvl = 0, pausedSince = 0;
   vids[0].classList.add('on');
   function switchFace() {
     var old = vids[vi]; vi = 1 - vi; var nv = vids[vi];
@@ -289,16 +317,18 @@
     var v = vids[vi];
     var raw = outLevel();
     lvl = lvl * 0.6 + raw * 0.4;                       // suaviza
-    var ON = 0.035, OFF = 0.015;
+    var ON = 0.02, OFF = 0.008;
     if (!mouthOn && lvl > ON) { mouthOn = true; v.play().catch(function () {}); }
     else if (mouthOn && lvl < OFF) { if (!quietSince) quietSince = now; if (now - quietSince > 140) { mouthOn = false; v.pause(); } }
     if (lvl >= OFF) quietSince = 0;
     if (mouthOn) v.playbackRate = Math.max(0.85, Math.min(1.3, 0.85 + lvl * 2.5));
+    // garantia: se há áudio tocando e o vídeo está parado há mais de 350 ms, anima assim mesmo
+    if (!mouthOn && v.paused) { if (!pausedSince) pausedSince = now; if (now - pausedSince > 350 && lvl > 0.004) { v.playbackRate = 0.9; v.play().catch(function () {}); mouthOn = true; } } else pausedSince = 0;
   }
   (function tick(now) {
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
-    if (sp !== wasSpeaking) { wasSpeaking = sp; if (sp) switchFace(); else { mouthOn = false; vids[vi].pause(); } }
+    if (sp !== wasSpeaking) { wasSpeaking = sp; if (sp) switchFace(); else { mouthOn = false; vids[vi].pause(); turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
     if (sp) driveMouth(now || performance.now());
     updateMicChip(now || performance.now());
     renderCaption(); requestAnimationFrame(tick);
@@ -309,7 +339,7 @@
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
   function fixName(t) { return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
-  var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.35; // atraso pequeno: o texto costuma chegar antes do som
+  var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.25; // atraso pequeno: o texto costuma chegar antes do som
   function feedCaption(chunk) {
     if (!outCtx) return;
     var words = fixName(chunk).split(/\s+/).filter(Boolean);
@@ -323,26 +353,26 @@
     if (!outCtx || !turnWords.length) return;
     var start = turnAudioStart || outCtx.currentTime;
     var dur = Math.max(0, playHead - start);
-    var n = turnWords.length;
-    // se o áudio ainda não cobre as palavras recebidas, estima o restante pelo ritmo médio observado (ou 0,38 s/palavra)
-    var rate = dur > 2 ? dur / n : 0.38;
-    for (var i = 0; i < n; i++) {
-      var t = start + (dur > 0 ? (i / n) * Math.max(dur, n * rate * 0.9) : i * rate) + CAP_LAG;
-      turnWords[i].t = t;
-    }
+    var n = turnWords.length, weights = [], total = 0;
+    for (var i = 0; i < n; i++) { var wgt = 2 + turnWords[i].w.replace(/[^\wÀ-ÿ]/g, '').length + (/[.!?,;:…]$/.test(turnWords[i].w) ? 3 : 0); weights.push(wgt); total += wgt; }
+    var rate = dur > 2 ? dur / total : 0.075; // segundos por "unidade de peso" (≈ letra)
+    var span = dur > 0 ? Math.max(dur, total * rate * 0.9) : total * rate;
+    var acc = 0;
+    for (var j = 0; j < n; j++) { turnWords[j].t = start + (acc / total) * span + CAP_LAG; acc += weights[j]; }
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
-  var CAP_WORDS = 7;
+  var CAP_WORDS = 7, turnShownWords = 0;
   function renderCaption() {
     if (!outCtx || !capWords.length) return;
     var now = outCtx.currentTime, changed = false;
     while (capWords.length && capWords[0].t <= now) {
-      var w = capWords.shift().w;
+      var w = capWords.shift().w; turnShownWords++;
       if (capBreak || capLine.length >= CAP_WORDS) { capLine = []; capBreak = false; }
       capLine.push(w); changed = true;
       if (/[.!?…,;:]["”)]?$/.test(w)) capBreak = true;   // pontuação fecha o bloco
     }
     if (changed) {
+      pumpVisualQueue(turnShownWords);
       caption.classList.remove('status');
       caption.innerHTML = '<span>' + capLine.map(function (x, i) {
         return '<em' + (i === capLine.length - 1 ? ' class="new"' : '') + '>' + esc(x) + '</em>';
@@ -431,6 +461,7 @@
       (sc.modelTurn && sc.modelTurn.parts || []).forEach(function (p) { if (p.inlineData && p.inlineData.data) playChunk(p.inlineData.data); });
       if (sc.turnComplete) {
         if (curOut) { push('waz', curOut); curOut = ''; } capLastT = 0;
+        if (transcript.length % 4 === 0) track('transcricao', { transcricao: transcript }); // salva a transcrição parcial (abandonos)
         if (!micAsked) { micAsked = true; askMicAfterOpening(); }
       }
     }
@@ -440,6 +471,7 @@
         if (fc.name === 'mostrar_visual') { track('visual', { id: fc.args && fc.args.id }); showVisual(fc.args && fc.args.id); }
         else if (fc.name === 'perguntar_opcoes') showOptions(fc.args || {});
         else if (fc.name === 'confirmar_dados') showConfirm(fc.args || {});
+        else if (fc.name === 'registrar_contexto') { Object.assign(leadData, { empresa: (fc.args && fc.args.empresa) || leadData.empresa, nome: (fc.args && fc.args.nome) || leadData.nome }); track('contexto', fc.args || {}); }
         else if (fc.name === 'registrar_lead') sendLead(fc.args || {});
         ws.send(JSON.stringify({ toolResponse: { functionResponses: [{ id: fc.id, name: fc.name, response: { result: 'ok' } }] } }));
       });
@@ -493,7 +525,7 @@
   textIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendTyped(); });
 
   function end(fromServer) {
-    if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript.slice(-40) });
+    if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript });
     active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
@@ -506,6 +538,7 @@
     setTimeout(function () { stage.classList.remove('on'); hero.classList.remove('hidden'); window.scrollTo(0, 0); }, 2500);
   }
   $('end').addEventListener('click', function () { end(false); });
+  window.addEventListener('pagehide', function () { if (active) track('encerrado', { por: 'saiu', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript }); });
   window.__wazDebug = { showVisual: showVisual, showConfirm: showConfirm, showOptions: showOptions, ctx: function () { return outCtx && { state: outCtx.state, t: outCtx.currentTime, playHead: playHead, words: capWords.length, lvl: outLevel() }; } };
   $('start').addEventListener('click', start);
 })();
