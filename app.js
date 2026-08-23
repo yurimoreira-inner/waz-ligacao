@@ -235,16 +235,28 @@
   }
   function playChunk(data) {
     if (!outCtx) return;
+    if (outCtx.state === 'suspended') outCtx.resume().catch(function () {});
     var f = fromB64(data), buf = outCtx.createBuffer(1, f.length, OUT_RATE); buf.getChannelData(0).set(f);
     var src = outCtx.createBufferSource(); src.buffer = buf; src.connect(analyser || outCtx.destination);
-    var now = outCtx.currentTime; if (playHead < now + 0.05) playHead = now + 0.25; // buffer inicial evita engasgo quando a rede oscila
+    var now = outCtx.currentTime; if (playHead < now + 0.05) { playHead = now + 0.25; turnAudioStart = playHead; } // buffer inicial evita engasgo quando a rede oscila
     src.start(playHead); playHead += buf.duration; sources.push(src);
     src.onended = function () { sources = sources.filter(function (s) { return s !== src; }); };
   }
-  var analyser = null, anBuf = null;
+  var analyser = null, anBuf = null, mediaDest = null, audioEl = null;
   function setupAnalyser() {
     analyser = outCtx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.5;
-    analyser.connect(outCtx.destination); anBuf = new Uint8Array(analyser.fftSize);
+    anBuf = new Uint8Array(analyser.fftSize);
+    // Saída via elemento <audio> (categoria "mídia"): toca no iPhone mesmo com a chave no silencioso
+    // e não depende do microfone estar ativo. Fallback: destino direto do AudioContext.
+    try {
+      mediaDest = outCtx.createMediaStreamDestination();
+      analyser.connect(mediaDest);
+      audioEl = document.getElementById('wazAudio') || document.createElement('audio');
+      audioEl.id = 'wazAudio'; audioEl.setAttribute('playsinline', ''); audioEl.autoplay = true; audioEl.style.display = 'none';
+      if (!audioEl.parentNode) document.body.appendChild(audioEl);
+      audioEl.srcObject = mediaDest.stream;
+      var pr = audioEl.play(); if (pr && pr.catch) pr.catch(function () { analyser.connect(outCtx.destination); });
+    } catch (e) { analyser.connect(outCtx.destination); }
   }
   function outLevel() {
     if (!analyser) return 0;
@@ -252,7 +264,7 @@
     var sum = 0; for (var i = 0; i < anBuf.length; i++) { var v = (anBuf[i] - 128) / 128; sum += v * v; }
     return Math.sqrt(sum / anBuf.length);
   }
-  function stopPlayback() { capLastT = 0; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
+  function stopPlayback() { capLastT = 0; turnAudioStart = 0; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
   // ---------- vídeo do rosto dirigido pela energia da voz ----------
   // A boca se mexe só quando há voz (pausa nas pausas) e a velocidade acompanha a intensidade.
@@ -288,16 +300,19 @@
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
   function fixName(t) { return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
+  var turnAudioStart = 0;
   function feedCaption(chunk) {
     if (!outCtx) return;
     var words = fixName(chunk).split(/\s+/).filter(Boolean);
     if (!words.length) return;
     var now = outCtx.currentTime;
-    // Linha do tempo sequencial: cada trecho ocupa o áudio ainda não "legendado" (de capLastT até playHead).
-    var start = capLastT > 0 ? capLastT : Math.max(now, playHead - 0.4);
-    if (start < now - 0.6) start = now - 0.2;                      // transcrição atrasada: mostra já
-    var end = playHead;
-    if (end < start + words.length * 0.2) end = start + words.length * SEC_PER_WORD; // transcrição adiantada: estima pelo ritmo
+    // Início: onde a legenda anterior parou; na primeira do turno, o instante em que o áudio do turno começou a tocar.
+    var start = capLastT > 0 ? capLastT : (turnAudioStart || now);
+    if (start < now - 0.5) start = now - 0.1;                        // atrasou: mostra já
+    // Fim: nunca além do áudio agendado, e nunca esticando mais que o ritmo natural de fala
+    var natural = start + words.length * SEC_PER_WORD;
+    var end = Math.min(Math.max(playHead, start + words.length * 0.15), natural * 1.0 + 0.0);
+    if (end <= start) end = start + words.length * SEC_PER_WORD;
     var step = (end - start) / words.length;
     words.forEach(function (w, i) { capWords.push({ w: w, t: start + step * i }); });
     capLastT = end;
@@ -344,6 +359,7 @@
     hero.classList.add('hidden'); stage.classList.add('on'); window.scrollTo(0, 0);
     vids.forEach(function (v) { v.play().then(function () { v.pause(); v.currentTime = 0; }).catch(function () {}); });
     outCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: OUT_RATE });
+    if (outCtx.state !== 'running') outCtx.resume().catch(function () {});
     setupAnalyser();
     try {
       var res = await fetch(ENDPOINT + '/token?v=2', { method: 'POST' });
@@ -469,12 +485,13 @@
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
     if (outCtx) { outCtx.close().catch(function () {}); outCtx = null; }
+    if (audioEl) { try { audioEl.pause(); audioEl.srcObject = null; } catch (e) {} }
     setLive(false, fromServer ? 'Conversa encerrada' : 'Encerrado');
     setCaption('Conversa encerrada. Obrigado pelo papo!', true);
     hideOptions(); showVisual('nenhum');
     setTimeout(function () { stage.classList.remove('on'); hero.classList.remove('hidden'); window.scrollTo(0, 0); }, 2500);
   }
   $('end').addEventListener('click', function () { end(false); });
-  window.__wazDebug = { showVisual: showVisual, showConfirm: showConfirm, showOptions: showOptions };
+  window.__wazDebug = { showVisual: showVisual, showConfirm: showConfirm, showOptions: showOptions, ctx: function () { return outCtx && { state: outCtx.state, t: outCtx.currentTime, playHead: playHead, words: capWords.length, lvl: outLevel() }; } };
   $('start').addEventListener('click', start);
 })();
