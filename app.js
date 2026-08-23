@@ -165,17 +165,17 @@
 
   // Vários slides na mesma fala: em vez de pular todos, distribui ao longo das palavras daquela fala.
   var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false;
+  var VIS_IMEDIATOS = { nenhum: 1, agendar: 1, whatsapp: 1, instagram: 1 };
   function queueVisual(id) {
-    if (id === 'nenhum') { visQueue = []; showVisualNow(id); return; }
+    if (VIS_IMEDIATOS[id]) { visQueue = []; showVisualNow(id); return; }
     visQueue.push(id);
-    // fora de uma fala (ou primeiro slide da fala): mostra já; os demais esperam a fala avançar
-    if (!turnLive || visShownInTurn === 0) { showVisualNow(visQueue.shift()); visShownInTurn = 1; }
     visTurnTotal = visShownInTurn + visQueue.length;
   }
   function pumpVisualQueue(shownWords) {
     if (!visQueue.length) return;
     var total = turnWords.length || 1;
-    var nextAt = Math.floor((visShownInTurn / visTurnTotal) * total);
+    // o 1º slide da fala só entra depois de ~4 palavras (a pessoa ouve o assunto primeiro)
+    var nextAt = Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
     if (shownWords >= nextAt) { showVisualNow(visQueue.shift()); visShownInTurn++; }
   }
   function showVisual(id) { queueVisual(id); }
@@ -192,7 +192,7 @@
         visual.querySelectorAll('.dots i').forEach(function (d, k) { d.classList.toggle('on', k === i); });
       });
       visual.classList.add('show');
-      if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
+      if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); showTyping(); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
     }, 150);
   }
 
@@ -213,7 +213,9 @@
     var oi = $('otherIn'), ob = $('otherBtn');
     if (ob) { ob.addEventListener('click', function () { if (oi.value.trim()) answer(oi.value.trim()); }); oi.addEventListener('keydown', function (e) { if (e.key === 'Enter' && oi.value.trim()) answer(oi.value.trim()); }); }
   }
+  function showTyping() { stage.classList.add('typing'); }
   function showConfirm(d) {
+    showTyping();
     leadData = { nome: d.nome || leadData.nome || '', email: d.email || leadData.email || '', whatsapp: ((d.whatsapp || leadData.whatsapp || '') + '').replace(/\D/g, ''), empresa: d.empresa || leadData.empresa || '' };
     visual.classList.remove('show');
     options.innerHTML = '<div class="q">Confere se está tudo certo:</div>' +
@@ -247,7 +249,7 @@
     if (micCtx) return true;
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-    } catch (e) { micBlocked = true; liveEl.className = 'live muted'; liveEl.querySelector('span').textContent = 'Microfone bloqueado · pode digitar'; return false; }
+    } catch (e) { micBlocked = true; showTyping(); liveEl.className = 'live muted'; liveEl.querySelector('span').textContent = 'Microfone bloqueado · pode digitar'; return false; }
     micCtx = new (window.AudioContext || window.webkitAudioContext)();
     await micCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletCode], { type: 'text/javascript' })));
     micNode = new AudioWorkletNode(micCtx, 'waz-cap');
@@ -269,7 +271,7 @@
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
       playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
-      turnLive = true; visShownInTurn = visQueue.length ? 0 : 0; if (visQueue.length) { showVisualNow(visQueue.shift()); visShownInTurn = 1; } visTurnTotal = visShownInTurn + visQueue.length; // 1º slide da fala entra agora; o resto ao longo das palavras
+      turnLive = true; visShownInTurn = 0; visTurnTotal = visQueue.length; // slides desta fala entram ao longo das palavras (o 1º após ~4)
       if (spokeSinceOptions) { // a pessoa respondeu por voz: a pergunta anterior já era
         if (!options.classList.contains('hidden')) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
         spokeSinceOptions = false;

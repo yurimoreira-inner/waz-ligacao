@@ -57,8 +57,8 @@
   .live.hearing .lv { display: inline-flex; }
   .live .lv b { width: 3px; height: 4px; background: var(--green); border-radius: 2px; transition: height .08s; }
   .avatar-wrap { position: relative; width: 112px; height: 112px; margin: 10px auto 10px; }
-  .avatar { width: 112px; height: 112px; border-radius: 50%; overflow: hidden; background: #e8f3ec url('waz-rosto.png') center 35%/150% no-repeat; border: 4px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.1); position: relative; z-index: 2; transform: translateZ(0); }
-  .face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; transform: scale(1.12); }
+  .avatar { width: 112px; height: 112px; border-radius: 50%; overflow: hidden; background: #d9dcdc url('waz-face.png') center/cover no-repeat; border: 4px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.1); position: relative; z-index: 2; transform: translateZ(0); }
+  .face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--green); opacity: 0; }
   .speaking .ring { animation: ring 2s ease-out infinite; }
   .speaking .ring:nth-child(2) { animation-delay: .65s; }
@@ -174,6 +174,8 @@
   .ctl.rec { background: #dc2626; border-color: #dc2626; color: #fff; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.4); } 50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); } }
   .ctl small { position: absolute; bottom: -16px; font-size: 9.5px; color: var(--muted2); white-space: nowrap; font-weight: 600; }
+  #stage:not(.typing) .type-el { display: none; }
+  #stage:not(.typing) .bar .row { justify-content: center; }
   .bar input { flex: 1; border: 1.5px solid var(--line); border-radius: 999px; padding: 12px 16px; font: inherit; font-size: 15px; min-width: 0; }
   .send { background: var(--green); border-color: var(--green); color: #fff; }
   .hint { text-align: center; font-size: 11px; color: var(--muted2); margin-top: 24px; }
@@ -213,7 +215,7 @@
 
   <div class="avatar-wrap" id="avatar">
     <span class="ring"></span><span class="ring"></span><span class="ring"></span>
-    <div class="avatar"><img class="face on" src="waz-rosto.png" alt="Waz" /></div>
+    <div class="avatar"><img class="face on" src="waz-face.png" alt="Waz" /></div>
   </div>
   <div class="live" id="live"><i></i><span>Conectando</span><em class="lv"><b></b><b></b><b></b></em></div>
   <div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i></div>
@@ -230,8 +232,8 @@
         <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
         <small>Ligado</small>
       </button>
-      <input id="text" type="text" placeholder="Ou digite aqui…" autocomplete="off" />
-      <button class="ctl send" id="sendBtn" title="Enviar">
+      <input id="text" type="text" placeholder="Digite aqui…" autocomplete="off" class="type-el" />
+      <button class="ctl send type-el" id="sendBtn" title="Enviar">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
       </button>
     </div>
@@ -239,6 +241,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608231716" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608231749" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>
