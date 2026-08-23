@@ -108,6 +108,10 @@
   @keyframes dmtyping { to { opacity: 1; } }
   @keyframes dmhide { to { opacity: 0; max-height: 0; padding: 0; margin: -4px 0 0; overflow: hidden; } }
   .dm-typing { max-height: 40px; }
+  .res-list { display: grid; gap: 10px; }
+  .res { background: #f7faf8; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .res b { display: block; font-size: 16px; } .res span { font-size: 13.5px; color: var(--muted); }
+  .res.set { background: var(--green-soft); border-color: #c9ebd4; text-align: center; } .res.set span { color: var(--green-dark); font-weight: 600; }
   .crm-img { max-height: 34dvh; object-fit: cover; object-position: top; }
   .cal-wrap { display: flex; flex-direction: column; height: 100%; } .cal-inline { flex: 1; min-height: 0; overflow-y: auto; } .cal-inline > * { height: 100%; } .cal-fallback { display: block; text-align: center; font-size: 12px; color: var(--muted2); padding: 6px 0 8px; flex: 0 0 auto; }
   /* modo compacto: quando o calendário está na tela, o topo encolhe pra dar espaço */
@@ -258,6 +262,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608231904" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608231920" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>

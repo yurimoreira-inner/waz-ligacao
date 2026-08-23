@@ -160,6 +160,12 @@
   VIS.insight_whatsapp = insight('O maior canal do mundo', 'Praticamente <b>todo brasileiro conectado</b> usa WhatsApp. Não importa o seu negócio: o seu cliente já está lá.', '');
   VIS.insight_comportamento = insight('O cliente mudou', 'Ele pesquisa, pergunta e compra pelo celular — e quer <b>resposta na hora</b>, onde ele já está.', '');
   VIS.insight_5min = insight('21× mais chances', 'de fechar negócio quando a resposta chega em <b>menos de 5 minutos</b>.', 'Estudo Lead Response Management');
+  VIS.resultados = '<div class="vpad"><div class="vtitle">Resultados pelo WhatsApp</div><div class="res-list">' +
+    '<div class="res"><b>Magazine Luiza</b><span>+ R$ 100 milhões vendidos pelo WhatsApp</span></div>' +
+    '<div class="res"><b>Brigadayros</b><span>+ R$ 100 mil/mês em vendas só no WhatsApp</span></div>' +
+    '<div class="res"><b>Brasil Grãos</b><span>atendimento 100% automatizado com o Waz</span></div>' +
+    '<div class="res set"><span>E funcionando em clínicas · imobiliárias · lojas de automóveis · supermercados</span></div></div></div>';
+
   // ---- pilares ----
   var PILARES = {
     pilar_velocidade: ['1º pilar', 'Velocidade', 'Quem mais vende não é quem tem o melhor preço. É quem responde primeiro: na 1ª hora, a chance de converter é até <b>7× maior</b>.', '⚡'],
