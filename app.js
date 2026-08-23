@@ -48,6 +48,22 @@
     h += '</div><div class="dots">' + slides.map(function (_, i) { return '<i class="' + (i ? '' : 'on') + '"></i>'; }).join('') + '</div>';
     return h;
   }
+  var FICONS = { qualificacao: '🎯', agendamento: '📅', propostas: '📄', pix: '💸', followup: '🔁', reativacao: '♻️' };
+  var FKEYS = ['qualificacao', 'agendamento', 'propostas', 'pix', 'followup', 'reativacao'];
+  function funcaoSlide(i) {
+    return '<div class="big"><div class="big-ic">' + FICONS[FKEYS[i]] + '</div><div class="vtitle">Função ' + (i + 1) + ' de 6</div><h3>' + F[i][0] + '</h3><p>' + F[i][1] + '</p></div>';
+  }
+  var CRM_ITENS = [['crm_funil', 'Funil visual em tempo real', 'Você abre o painel e sabe exatamente quem está pronto para fechar.'], ['crm_automatico', 'Leads movidos de fase automaticamente', 'Conforme a conversa avança, o lead muda de etapa sozinho.'], ['crm_historico', 'Histórico completo de cada conversa', 'Tudo que foi dito fica registrado, organizado por cliente.']];
+  function crmSlide(k) {
+    var it = CRM_ITENS.find(function (c) { return c[0] === k; });
+    return '<img class="full crm-img" src="crm.png" alt="CRM do Waz" /><div class="vpad"><div class="vtitle">CRM 100% guiado por IA</div><h3 class="h3">' + it[1] + '</h3><p class="p">' + it[2] + '</p></div>';
+  }
+  var CMP = [['Custo mensal', 'R$ 3.500+ com encargos', 'Menos que um SDR'], ['Horário', 'Máximo 8h por dia', '24h por dia'], ['Dias', 'Segunda a sexta', 'Domingo a domingo'], ['Resposta', 'Minutos a horas', 'Segundos'], ['Férias / turnover', 'Sim, treino do zero', 'Nunca. Treinou uma vez, fica'], ['Conversas ao mesmo tempo', '1 por vez', 'Todas']];
+  function cmpSlide(withWaz) {
+    var h = '<div class="vpad"><div class="vtitle">' + (withWaz ? 'SDR júnior × Waz' : 'Quanto custa um SDR júnior?') + '</div><table class="cmp' + (withWaz ? ' two' : '') + '"><tr><th></th><th>SDR júnior</th>' + (withWaz ? '<th class="w">Waz</th>' : '') + '</tr>';
+    CMP.forEach(function (r, i) { h += '<tr style="animation-delay:' + (i * 90) + 'ms"><td>' + r[0] + '</td><td>' + r[1] + '</td>' + (withWaz ? '<td class="w">' + r[2] + '</td>' : '') + '</tr>'; });
+    return h + '</table></div>';
+  }
   var VIS = {
     exemplo_conversa:
       '<div class="vpad"><div class="vtitle">Nunca mais deixe um lead morrer sem resposta</div><div class="chat">' +
@@ -60,21 +76,10 @@
       '<div class="msg">17h30!<small>19:03</small></div><div class="msg me">Agendado! ✅ Te envio um lembrete amanhã.<small>19:03 ✓✓</small></div>' +
       '<span class="tag ok">O Waz cuidou de tudo</span></div></div>' +
       '<p style="margin:12px 0 0;font-size:13px;color:#5c6664"><b style="color:#16a34a">21x</b> mais chances de fechar quando a resposta chega em menos de 5 minutos.</p></div>',
-    funcoes: carousel('Ele cuida de tudo. De ponta a ponta.', F.map(function (f) { return '<h4>' + f[0] + '</h4><p>' + f[1] + '</p>'; })),
-    crm: '<img class="full" src="crm.png" alt="CRM do Waz" /><div class="vpad"><div class="vtitle">CRM 100% guiado por IA</div>' +
-      '<div class="steps"><div class="step"><b>1</b><div><h4>Funil visual em tempo real</h4></div></div><div class="step"><b>2</b><div><h4>Leads movidos de fase automaticamente</h4></div></div><div class="step"><b>3</b><div><h4>Histórico completo de cada conversa</h4></div></div></div></div>',
     como_funciona: '<div class="vpad"><div class="vtitle">Entregue pronto em até 7 dias</div><div class="steps">' +
       '<div class="step"><b>1</b><div><h4>Diagnóstico</h4><p>Entendemos a fundo o seu negócio: produtos, serviços, preços, condições e tom de voz.</p></div></div>' +
       '<div class="step"><b>2</b><div><h4>Treinamento</h4><p>Treinamos e configuramos o Waz no WhatsApp do seu negócio e colocamos ele no ar.</p></div></div>' +
       '<div class="step"><b>3</b><div><h4>Acompanhamento</h4><p>Nosso time acompanha e ajuda você durante todo o período contratado.</p></div></div></div></div>',
-    comparativo: '<div class="vpad"><div class="vtitle">Escale resultados, sem aumentar custos</div><table class="cmp">' +
-      '<tr><th></th><th>SDR júnior</th><th class="w">Waz</th></tr>' +
-      '<tr><td>Custo mensal</td><td>R$ 3.500+ com encargos</td><td class="w">R$ 2.000</td></tr>' +
-      '<tr><td>Horário</td><td>Máximo 8h por dia</td><td class="w">24h por dia</td></tr>' +
-      '<tr><td>Dias</td><td>Segunda a sexta</td><td class="w">Domingo a domingo</td></tr>' +
-      '<tr><td>Resposta</td><td>Minutos a horas</td><td class="w">Segundos</td></tr>' +
-      '<tr><td>Férias / turnover</td><td>Sim, treinamento do zero</td><td class="w">Nunca. Treinou uma vez, fica</td></tr>' +
-      '<tr><td>Conversas simultâneas</td><td>1 por vez</td><td class="w">Todas, ao mesmo tempo</td></tr></table></div>',
     preco: '<div class="price"><div class="name">Waz Essential · plano único</div><div class="val">R$ 2.000<span>/mês</span></div>' +
       '<ul><li>O Waz completo, sem módulos escondidos</li><li>Entregue pronto e funcionando em até 7 dias</li><li>4 mentorias em grupo por mês</li><li>Todas as atualizações futuras inclusas</li></ul>' +
       '<div class="guar">Garantia de resultado · reembolso de 100%, sem burocracia</div></div>',
@@ -94,7 +99,7 @@
     requestAnimationFrame(function () {
       var avail = slot.clientHeight, h = el.offsetHeight;
       if (h > avail && avail > 0) {
-        var k = Math.max(0.5, avail / h);
+        var k = Math.max(0.82, avail / h); // nunca encolhe mais que 18%; o resto rola dentro do palco
         el.style.transform = 'scale(' + k + ')';
         el.style.marginBottom = (-(h * (1 - k))) + 'px'; // compensa o espaço de layout sem encolher a caixa
       }
@@ -118,11 +123,19 @@
     return CAL_URL + '?' + q.toString();
   }
   VIS.agendar = function () {
-    return '<div class="cta-card"><div class="vtitle">Agende sua conversa com o especialista</div>' +
-      '<p>Escolha o melhor horário no calendário do time. Seus dados já vão preenchidos.</p>' +
-      '<a class="cta-btn" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Escolher horário no calendário →</a>' +
-      '<small>Abre em uma nova aba · cal.com/squad-vendas</small></div>';
+    return '<div class="cal-wrap"><div class="vtitle" style="padding:14px 16px 0">Escolha o melhor horário</div><div id="cal-inline" class="cal-inline"></div>' +
+      '<a class="cal-fallback" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Abrir o calendário em outra aba</a></div>';
   };
+  function mountCal() {
+    var el = document.getElementById('cal-inline'); if (!el) return;
+    (function (C, A, L) { var p = function (a, ar) { a.q.push(ar); }; var d = C.document; C.Cal = C.Cal || function () { var cal = C.Cal, ar = arguments; if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement('script')).src = A; cal.loaded = true; } if (ar[0] === L) { var api = function () { p(api, arguments); }, namespace = ar[1]; api.q = api.q || []; if (typeof namespace === 'string') { cal.ns[namespace] = cal.ns[namespace] || api; p(cal.ns[namespace], ar); p(cal, ['initNamespace', namespace]); } else p(cal, ar); return; } p(cal, ar); }; })(window, 'https://app.cal.com/embed/embed.js', 'init');
+    window.Cal('init', 'waz', { origin: 'https://app.cal.com' });
+    window.Cal.ns.waz('inline', { elementOrSelector: '#cal-inline', calLink: 'squad-vendas/demo', layout: 'month_view',
+      config: { name: leadData.nome || '', email: leadData.email || '', attendeePhoneNumber: leadData.whatsapp ? '+55' + leadData.whatsapp.replace(/\D/g, '') : '', notes: 'Lead da apresentação do Waz' + (leadData.empresa ? ' · ' + leadData.empresa : ''), theme: 'light' } });
+    window.Cal.ns.waz('ui', { hideEventTypeDetails: true, layout: 'month_view', cssVarsPerTheme: { light: { 'cal-brand': '#16a34a' } } });
+    window.Cal.ns.waz('on', { action: 'bookingSuccessful', callback: function () { track('calendar_booked'); sendText('Acabei de agendar pelo calendário.', 'Agendado'); } });
+    track('calendar_shown');
+  }
   VIS.whatsapp = function () {
     return '<div class="cta-card"><div class="vtitle">Continue comigo no WhatsApp</div>' +
       '<p>Tire suas dúvidas direto comigo e veja, na prática, como eu atendo. A mensagem já vai pronta.</p>' +
@@ -132,6 +145,11 @@
   VIS.instagram = '<div class="cta-card ig"><img src="waz-mascote.png" alt="Waz" class="ig-img" /><div class="vtitle">Acompanhe a Squad no Instagram</div>' +
       '<p>Novidades, bastidores e casos reais de clientes usando o Waz.</p>' +
       '<a class="cta-btn ig-btn" href="' + IG_URL + '" target="_blank" rel="noopener" data-ev="instagram_click">Seguir @squadcom_br</a></div>';
+
+  FKEYS.forEach(function (k, i) { VIS['funcao_' + k] = funcaoSlide(i); });
+  CRM_ITENS.forEach(function (c) { VIS[c[0]] = crmSlide(c[0]); });
+  VIS.comparativo_sdr = cmpSlide(false);
+  VIS.comparativo_waz = cmpSlide(true);
 
   function showVisual(id) {
     if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); pendingVisual = null; return; }
@@ -145,7 +163,7 @@
         visual.querySelectorAll('.dots i').forEach(function (d, k) { d.classList.toggle('on', k === i); });
       });
       visual.classList.add('show');
-      fitSlot(visual);
+      if (id === 'agendar') { visual.classList.add('tall'); mountCal(); } else { visual.classList.remove('tall'); fitSlot(visual); }
     }, 150);
   }
 
@@ -233,7 +251,7 @@
     var sum = 0; for (var i = 0; i < anBuf.length; i++) { var v = (anBuf[i] - 128) / 128; sum += v * v; }
     return Math.sqrt(sum / anBuf.length);
   }
-  function stopPlayback() { sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
+  function stopPlayback() { capLastT = 0; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
   // ---------- vídeo do rosto dirigido pela energia da voz ----------
   // A boca se mexe só quando há voz (pausa nas pausas) e a velocidade acompanha a intensidade.
@@ -267,22 +285,24 @@
   // ---------- sessão ----------
   // Legenda sincronizada com o áudio, exibida por FRASE (quebra só em pontuação).
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
-  var capWords = [], capLine = [], capLastT = 0, capBreak = false, CAP_MAX = 14, SEC_PER_WORD = 0.34;
+  var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
   function fixName(t) { return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
   function feedCaption(chunk) {
     if (!outCtx) return;
     var words = fixName(chunk).split(/\s+/).filter(Boolean);
     if (!words.length) return;
     var now = outCtx.currentTime;
-    var start = Math.max(capLastT, now);
-    var end = Math.max(playHead, start + words.length * SEC_PER_WORD); // se o áudio ainda não chegou, estima pelo ritmo de fala
-    if (end - start > words.length * 0.6) start = end - words.length * 0.6; // não arrasta demais
+    // Linha do tempo sequencial: cada trecho ocupa o áudio ainda não "legendado" (de capLastT até playHead).
+    var start = capLastT > 0 ? capLastT : Math.max(now, playHead - 0.4);
+    if (start < now - 0.6) start = now - 0.2;                      // transcrição atrasada: mostra já
+    var end = playHead;
+    if (end < start + words.length * 0.2) end = start + words.length * SEC_PER_WORD; // transcrição adiantada: estima pelo ritmo
     var step = (end - start) / words.length;
     words.forEach(function (w, i) { capWords.push({ w: w, t: start + step * i }); });
     capLastT = end;
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
-  var CAP_WORDS = 4;
+  var CAP_WORDS = 7;
   function renderCaption() {
     if (!outCtx || !capWords.length) return;
     var now = outCtx.currentTime, changed = false;
@@ -379,7 +399,7 @@
         curOut += fixName(sc.outputTranscription.text); feedCaption(sc.outputTranscription.text);
       }
       (sc.modelTurn && sc.modelTurn.parts || []).forEach(function (p) { if (p.inlineData && p.inlineData.data) playChunk(p.inlineData.data); });
-      if (sc.turnComplete) { if (curOut) { push('waz', curOut); curOut = ''; } }
+      if (sc.turnComplete) { if (curOut) { push('waz', curOut); curOut = ''; } capLastT = 0; }
     }
     if (msg.toolCall && msg.toolCall.functionCalls) {
       msg.toolCall.functionCalls.forEach(function (fc) {
