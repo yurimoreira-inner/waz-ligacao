@@ -30,6 +30,7 @@
   var ws = null, micCtx = null, micStream = null, micNode = null, outCtx = null, playHead = 0, sources = [];
   var micLvl = 0, micPeak = 0, connected = false, micBlocked = false;
   var liveMode = false, recording = false, active = false, startedAt = 0, leadSent = false;
+  var micAsked = false, userAnswered = false, nudgeTimer = null;
   var transcript = [], curOut = '', curIn = '';
   var resumeHandle = null, reconnecting = false, setupCfg = null;
 
@@ -327,7 +328,7 @@
   function updateMicChip(now) {
     if (!active || !ws || !connected) return;
     if (micBlocked) { liveEl.className = 'live muted'; liveEl.querySelector('span').textContent = 'Microfone bloqueado · pode digitar'; return; }
-    if (!liveMode) { liveEl.className = 'live muted'; liveEl.querySelector('span').textContent = 'Microfone desligado'; return; }
+    if (!liveMode) { liveEl.className = micAsked ? 'live muted' : 'live on'; liveEl.querySelector('span').textContent = micAsked ? 'Microfone desligado' : 'Ao vivo com o Waz'; return; }
     var talking = micLvl > 0.02 && !isSpeaking();
     if (talking) hearingUntil = now + 600;
     var hearing = now < hearingUntil;
@@ -359,8 +360,7 @@
       setupCfg = cfg;
       ws.onclose = function (e) { if (!active || ws !== mine) return; if (resumeHandle && !reconnecting) reconnect(); else end(true); };
       startedAt = Date.now();
-      // tenta ligar o microfone ao vivo por padrão (ligação); se negar, segue por texto/botões
-      if (await ensureMic()) toggleLive(true);
+      // O microfone só é pedido quando o Waz termina a abertura (momento em que a pessoa quer responder).
     } catch (e) { setCaption('Não consegui conectar agora. Tente de novo em instantes.', true); }
   }
 
@@ -393,13 +393,16 @@
     var sc = msg.serverContent;
     if (sc) {
       if (sc.interrupted) { stopPlayback(); resetCaption(); return; }
-      if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; }
+      if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; userAnswered = true; }
       if (sc.outputTranscription && sc.outputTranscription.text) {
         if (curIn) { push('cliente', curIn); curIn = ''; }
         curOut += fixName(sc.outputTranscription.text); feedCaption(sc.outputTranscription.text);
       }
       (sc.modelTurn && sc.modelTurn.parts || []).forEach(function (p) { if (p.inlineData && p.inlineData.data) playChunk(p.inlineData.data); });
-      if (sc.turnComplete) { if (curOut) { push('waz', curOut); curOut = ''; } capLastT = 0; }
+      if (sc.turnComplete) {
+        if (curOut) { push('waz', curOut); curOut = ''; } capLastT = 0;
+        if (!micAsked) { micAsked = true; askMicAfterOpening(); }
+      }
     }
     if (msg.toolCall && msg.toolCall.functionCalls) {
       msg.toolCall.functionCalls.forEach(function (fc) {
@@ -413,10 +416,28 @@
     }
     if (msg.goAway && resumeHandle && !reconnecting) { try { ws.onclose = null; ws.close(); } catch (e) {} reconnect(); }
   }
+  async function askMicAfterOpening() {
+    // espera o áudio da abertura terminar de tocar, aí pede o microfone
+    var wait = outCtx ? Math.max(0, (playHead - outCtx.currentTime) * 1000) + 150 : 0;
+    setTimeout(async function () {
+      if (!active) return;
+      var ok = await ensureMic();
+      if (ok) toggleLive(true);
+      track('mic_permissao', { ok: ok });
+      // se em alguns segundos ninguém respondeu, o Waz dá um empurrãozinho (uma vez só)
+      nudgeTimer = setTimeout(function () {
+        if (!active || userAnswered || !ws || ws.readyState !== 1) return;
+        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: ok
+          ? 'O visitante ainda não respondeu. Diga, em uma frase curta e simpática, que pode falar normalmente ou digitar aqui embaixo.'
+          : 'O visitante não liberou o microfone. Diga, em uma frase curta e simpática, que ele pode tocar no botão do microfone pra liberar e falar, ou digitar aqui embaixo.' }] }], turnComplete: true } }));
+      }, 9000);
+    }, wait);
+  }
   function push(role, text) { transcript.push({ role: role, text: fixName(text) }); }
 
   function sendText(payload, shown) {
     if (!ws || ws.readyState !== 1) return;
+    userAnswered = true;
     stopPlayback(); curOut = ''; resetCaption();
     push('cliente', shown || payload);
     ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: payload }] }], turnComplete: true } }));
@@ -443,7 +464,7 @@
 
   function end(fromServer) {
     if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript.slice(-40) });
-    active = false; liveMode = false; recording = false; connected = false; micBlocked = false;
+    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
