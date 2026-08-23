@@ -252,7 +252,18 @@
     var nextAt = Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
     if (shownWords >= nextAt) { showVisualNow(visQueue.shift()); visShownInTurn++; }
   }
-  function showVisual(id) { queueVisual(id); }
+  var VIS_ALIAS = { funcoes: 'funcao_qualificacao', funcao: 'funcao_qualificacao', crm: 'crm_funil', comparativo: 'comparativo_waz', demo: 'demo_pergunta', demonstracao: 'demo_pergunta', pilares: 'pilar_velocidade', preco_waz: 'preco', precos: 'preco', valor: 'preco', garantia: 'preco', resultado: 'resultados', casos: 'resultados', cases: 'resultados', depoimento: 'depoimentos', autoridade: 'quem_esta_por_tras', squad: 'quem_esta_por_tras', calendario: 'agendar', insight: 'insight_5min' };
+  function normalizeVisId(id) {
+    if (!id) return id;
+    id = String(id).toLowerCase().trim().replace(/\s+/g, '_');
+    if (VIS[id] || id === 'nenhum' || id.indexOf('demo_') === 0) return id;
+    if (VIS_ALIAS[id]) return VIS_ALIAS[id];
+    // aproximação por prefixo (ex.: "crm_algo" → crm_funil)
+    var keys = Object.keys(VIS);
+    for (var i = 0; i < keys.length; i++) if (keys[i].indexOf(id) === 0 || id.indexOf(keys[i]) === 0) return keys[i];
+    return id;
+  }
+  function showVisual(id) { queueVisual(normalizeVisId(id)); }
   function showVisualNow(id) {
     if (id && id.indexOf('demo_') === 0) { if (!confirmMode) hideOptions(); pendingVisual = null; showDemo(id); return; }
     demoStage = -1;
@@ -467,6 +478,7 @@
     if (active) return; active = true; leadSent = false; transcript = [];
     track('start_click');
     hero.classList.add('hidden'); stage.classList.add('on'); window.scrollTo(0, 0);
+    ['crm.png', 'inner-ai.png', 'waz-mascote.png', 'midia-1.svg', 'midia-2.svg', 'midia-3.svg', 'midia-4.svg'].forEach(function (f) { var im = new Image(); im.src = '' + f; });
     outCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: OUT_RATE });
     if (outCtx.state !== 'running') outCtx.resume().catch(function () {});
     setupAnalyser();
