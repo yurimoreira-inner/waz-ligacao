@@ -21,7 +21,7 @@
   })();
   function track(evento, dados) {
     var body = JSON.stringify({ sid: SID, evento: evento, dados: dados || {}, attr: ATTR, ts: new Date().toISOString() });
-    try { if (navigator.sendBeacon) navigator.sendBeacon(ENDPOINT + '/event', new Blob([body], { type: 'application/json' })); else fetch(ENDPOINT + '/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }); } catch (e) {}
+    try { fetch(ENDPOINT + '/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true, credentials: 'omit' }).catch(function () {}); } catch (e) {}
   }
   track('page_view');
   document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-ev]'); if (a) track(a.getAttribute('data-ev'), { href: a.href }); });
