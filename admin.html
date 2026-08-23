@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Waz · Painel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root { --ink:#0a0a0a; --muted:#5c6664; --muted2:#798282; --green:#16a34a; --green-dark:#15803d; --green-soft:#dcfce7; --line:#e6ebe8; --bg:#f6f8f7; }
+  * { box-sizing:border-box; } body { margin:0; font-family:Inter,system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  header b { font-size:16px; } header .who { font-size:12px; color:var(--muted2); }
+  button, .btn { font:inherit; cursor:pointer; border:1px solid var(--line); background:#fff; border-radius:10px; padding:9px 14px; font-weight:600; }
+  .btn.p { background:var(--green); border-color:var(--green); color:#fff; }
+  main { max-width:1100px; margin:0 auto; padding:20px; }
+  .login { max-width:380px; margin:80px auto; background:#fff; border:1px solid var(--line); border-radius:18px; padding:26px; text-align:center; }
+  .login input { width:100%; font:inherit; padding:12px; border:1.5px solid var(--line); border-radius:10px; margin:14px 0; }
+  .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .filters select, .filters input { font:inherit; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; background:#fff; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px; } .card b { display:block; font-size:26px; } .card span { font-size:12px; color:var(--muted2); font-weight:600; }
+  h2 { font-size:15px; margin:22px 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .funil { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px; }
+  .row { display:grid; grid-template-columns:220px 1fr 70px 60px; gap:10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .row:last-child { border:0; } .bar { height:14px; background:var(--green-soft); border-radius:7px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--green); }
+  .row .n { font-weight:700; text-align:right; } .row .pct { color:var(--muted2); font-size:12px; text-align:right; }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; font-size:13px; }
+  th { text-align:left; padding:10px; background:#f9fbfa; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted2); border-bottom:1px solid var(--line); }
+  td { padding:10px; border-bottom:1px solid var(--line); vertical-align:top; } tr:hover td { background:#fafcfb; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#eef1ef; color:var(--muted); }
+  .tag.q { background:var(--green-soft); color:var(--green-dark); } .tag.w { background:#e0f2fe; color:#0369a1; }
+  .wrap { overflow-x:auto; }
+  dialog { border:none; border-radius:16px; padding:0; width:min(720px,94vw); } dialog .in { padding:18px; max-height:80vh; overflow:auto; }
+  .t { font-size:13px; line-height:1.5; margin:6px 0; } .t.waz b { color:var(--green-dark); } .t.cliente b { color:#0369a1; }
+  .muted { color:var(--muted2); font-size:12px; }
+</style>
+</head>
+<body>
+<header><b>Waz · Painel da ligação</b><div><span class="who" id="who"></span> <button id="logout" class="hidden">Sair</button></div></header>
+<main id="app"></main>
+<dialog id="dlg"><div class="in" id="dlgIn"></div></dialog>
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const SUPABASE_URL = 'https://eixodziurjftvemvbxof.supabase.co';
+const ANON = 'sb_publishable_Zckf2ekmHoZ8OV5ZG8CYxw_m_QLZgEQ';
+const sb = createClient(SUPABASE_URL, ANON);
+const app = document.getElementById('app'), who = document.getElementById('who'), logout = document.getElementById('logout');
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+function renderLogin(msg) {
+  app.innerHTML = `<div class="login"><h2 style="margin:0 0 6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:20px">Acesso restrito</h2>
+    <p class="muted">Entre com o e-mail autorizado. Você recebe um link mágico, sem senha.</p>
+    <input id="email" type="email" placeholder="seu@email.com" /><button class="btn p" id="go" style="width:100%">Enviar link de acesso</button>
+    <p class="muted" id="msg">${esc(msg || '')}</p></div>`;
+  document.getElementById('go').onclick = async () => {
+    const email = document.getElementById('email').value.trim();
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+    document.getElementById('msg').textContent = error ? 'Erro: ' + error.message : 'Link enviado! Confira seu e-mail e abra o link neste dispositivo.';
+  };
+}
+
+async function renderPanel(user) {
+  who.textContent = user.email; logout.classList.remove('hidden');
+  const { data: adm } = await sb.from('admins').select('email').limit(1);
+  if (!adm || !adm.length) { app.innerHTML = `<div class="login"><h2>Sem permissão</h2><p class="muted">${esc(user.email)} não está na lista de administradores.</p></div>`; return; }
+  app.innerHTML = `<div class="filters">
+      <select id="periodo"><option value="1">Hoje</option><option value="7" selected>7 dias</option><option value="30">30 dias</option><option value="365">Tudo</option></select>
+      <select id="campanha"><option value="">Todas as campanhas</option></select>
+      <input id="busca" placeholder="Buscar lead (nome, e-mail, empresa)…" style="flex:1;min-width:200px" />
+      <button id="atualizar">Atualizar</button><button id="csv">Exportar CSV</button></div>
+    <div class="cards" id="cards"></div>
+    <h2>Funil</h2><div class="funil" id="funil"></div>
+    <h2>Leads</h2><div class="wrap"><table id="leads"><thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th><th>Contato</th><th>Negócio</th><th>Conversas/dia</th><th>Dor</th><th>Caminho</th><th>Origem</th><th></th></tr></thead><tbody></tbody></table></div>
+    <h2>Sessões recentes (inclusive abandonos)</h2><div class="wrap"><table id="sessoes"><thead><tr><th>Quando</th><th>Etapa alcançada</th><th>Negócio</th><th>Conversas/dia</th><th>Dor</th><th>Nome / contato</th><th>Campanha</th><th>Anúncio</th><th>Origem</th><th>Duração</th></tr></thead><tbody></tbody></table></div>`;
+  const $ = (id) => document.getElementById(id);
+  async function load() {
+    const dias = Number($('periodo').value), de = new Date(Date.now() - dias * 864e5).toISOString(), camp = $('campanha').value || null;
+    const [{ data: funil }, { data: sess }, { data: leads }] = await Promise.all([
+      sb.rpc('funil', { p_de: de, p_ate: new Date(Date.now() + 864e5).toISOString(), p_campanha: camp }),
+      sb.from('sessoes').select('*').gte('criado_em', de).order('criado_em', { ascending: false }).limit(300),
+      sb.from('leads').select('*').gte('criado_em', de).order('criado_em', { ascending: false }).limit(300),
+    ]);
+    const camps = [...new Set((sess || []).map((s) => s.utm_campaign).filter(Boolean))];
+    const sel = $('campanha'); const cur = sel.value; sel.innerHTML = '<option value="">Todas as campanhas</option>' + camps.map((c) => `<option ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('');
+    const S = camp ? (sess || []).filter((s) => s.utm_campaign === camp) : (sess || []);
+    const L = camp ? (leads || []).filter((l) => l.attr?.utm_campaign === camp) : (leads || []);
+    const n = (o) => S.filter((s) => s.etapa_ordem >= o).length;
+    $('cards').innerHTML = [['Visitas', n(1)], ['Começaram', n(2)], ['Conectaram', n(3)], ['Responderam dor', n(7)], ['Dados confirmados', n(8)], ['Leads', L.length], ['Calendário', S.filter((s) => s.caminho === 'calendario').length], ['WhatsApp', S.filter((s) => s.caminho === 'whatsapp').length]]
+      .map(([k, v]) => `<div class="card"><b>${v}</b><span>${k}</span></div>`).join('');
+    const top = (funil && funil[0]?.total) || 1;
+    $('funil').innerHTML = (funil || []).map((f) => `<div class="row"><span>${esc(f.etapa)}</span><div class="bar"><i style="width:${Math.round(100 * f.total / top)}%"></i></div><span class="n">${f.total}</span><span class="pct">${Math.round(100 * f.total / top)}%</span></div>`).join('');
+    const q = $('busca').value.toLowerCase();
+    const LL = L.filter((l) => !q || [l.nome, l.email, l.empresa, l.whatsapp].join(' ').toLowerCase().includes(q));
+    $('leads').querySelector('tbody').innerHTML = LL.map((l, i) => `<tr><td>${fmt(l.criado_em)}</td><td><b>${esc(l.nome)}</b><br><span class="tag ${l.classificacao === 'quente' ? 'q' : ''}">${esc(l.classificacao || '')}</span></td><td>${esc(l.empresa)}</td><td>${esc(l.email)}<br>${esc(l.whatsapp)}</td><td>${esc(l.tipo_negocio)}</td><td>${esc(l.conversas_dia)}</td><td>${esc(l.dor_principal)}</td><td><span class="tag w">${esc(l.caminho || '')}</span></td><td class="muted">${esc(l.attr?.utm_source || '')}<br>${esc(l.attr?.utm_campaign || '')}<br>${esc(l.attr?.utm_content || '')}</td><td><button data-i="${i}">Ver</button></td></tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhum lead no período.</td></tr>';
+    $('leads').querySelectorAll('button[data-i]').forEach((b) => b.onclick = () => showLead(LL[b.dataset.i]));
+    $('sessoes').querySelector('tbody').innerHTML = S.slice(0, 100).map((s) => `<tr><td>${fmt(s.criado_em)}</td><td><span class="tag">${s.etapa_ordem} · ${esc(s.etapa)}</span></td><td>${esc(s.tipo_negocio)}</td><td>${esc(s.conversas_dia)}</td><td>${esc(s.dor)}</td><td>${esc(s.nome)}<br><span class="muted">${esc(s.whatsapp || s.email || '')}</span></td><td>${esc(s.utm_campaign)}</td><td>${esc(s.utm_content)}</td><td>${esc(s.utm_source)} <span class="muted">${esc(s.device)}</span></td><td>${s.duracao_seg ? Math.round(s.duracao_seg / 60) + ' min' : ''}</td></tr>`).join('');
+    window.__leads = LL;
+  }
+  function showLead(l) {
+    const d = document.getElementById('dlg');
+    document.getElementById('dlgIn').innerHTML = `<h3 style="margin:0">${esc(l.nome)} · ${esc(l.empresa)}</h3><p class="muted">${esc(l.email)} · ${esc(l.whatsapp)} · ${esc(l.classificacao)} · ${esc(l.caminho)} · ${l.duracao_seg || 0}s</p><p><b>Resumo:</b> ${esc(l.resumo)}</p><h4>Transcrição</h4>${(l.transcricao || []).map((t) => `<div class="t ${t.role}"><b>${t.role === 'waz' ? 'Waz' : 'Cliente'}:</b> ${esc(t.text)}</div>`).join('') || '<p class="muted">Sem transcrição.</p>'}<p style="text-align:right"><button onclick="document.getElementById('dlg').close()">Fechar</button></p>`;
+    d.showModal();
+  }
+  $('csv').onclick = () => {
+    const rows = [['quando', 'nome', 'empresa', 'email', 'whatsapp', 'tipo_negocio', 'conversas_dia', 'quem_responde', 'dor', 'classificacao', 'caminho', 'utm_source', 'utm_campaign', 'utm_content', 'resumo']];
+    (window.__leads || []).forEach((l) => rows.push([l.criado_em, l.nome, l.empresa, l.email, l.whatsapp, l.tipo_negocio, l.conversas_dia, l.quem_responde, l.dor_principal, l.classificacao, l.caminho, l.attr?.utm_source, l.attr?.utm_campaign, l.attr?.utm_content, l.resumo]));
+    const csv = rows.map((r) => r.map((v) => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = 'leads-waz.csv'; a.click();
+  };
+  ['periodo', 'campanha'].forEach((id) => $(id).onchange = load); $('atualizar').onclick = load; $('busca').oninput = load;
+  load();
+}
+
+logout.onclick = async () => { await sb.auth.signOut(); location.reload(); };
+const { data: { session } } = await sb.auth.getSession();
+if (session?.user) renderPanel(session.user); else renderLogin();
+sb.auth.onAuthStateChange((_e, s) => { if (s?.user && !who.textContent) renderPanel(s.user); });
+</script>
+</body>
+</html>
