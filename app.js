@@ -99,7 +99,7 @@
       '<div class="quote">“O cliente não consegue perceber que tá falando com uma IA. Realmente é um vendedor.”<footer>Ariane Lima · Gerente Comercial, Brasil Grãos</footer></div>',
     ]),
   };
-  var slot = $('slot'), pendingVisual = null;
+  var slot = $('slot'), pendingVisual = null, confirmMode = false;
   // Encaixa o conteúdo do palco no espaço disponível (sem rolagem): reduz a escala se precisar.
   function fitSlot(el) {
     el.style.transform = ''; el.style.marginBottom = '';
@@ -254,11 +254,12 @@
   }
   function showVisual(id) { queueVisual(id); }
   function showVisualNow(id) {
-    if (id && id.indexOf('demo_') === 0) { hideOptions(); pendingVisual = null; showDemo(id); return; }
+    if (id && id.indexOf('demo_') === 0) { if (!confirmMode) hideOptions(); pendingVisual = null; showDemo(id); return; }
     demoStage = -1;
     if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); stage.classList.remove('compact'); pendingVisual = null; return; }
-    if (!options.classList.contains('hidden') && !spokeSinceOptions) { pendingVisual = id; return; } // opções têm prioridade até a pessoa responder (clique, texto ou voz)
-    if (spokeSinceOptions) hideOptions();
+    if (confirmMode && id !== 'agendar' && id !== 'whatsapp') { pendingVisual = id; return; } // cartão de dados na tela: nada passa por cima até confirmar
+    if (!options.classList.contains('hidden') && !spokeSinceOptions && !confirmMode) { pendingVisual = id; return; }
+    if (spokeSinceOptions && !confirmMode) hideOptions();
     visual.classList.remove('show');
     setTimeout(function () {
       visual.innerHTML = typeof VIS[id] === 'function' ? VIS[id]() : VIS[id];
@@ -268,6 +269,7 @@
         visual.querySelectorAll('.dots i').forEach(function (d, k) { d.classList.toggle('on', k === i); });
       });
       visual.classList.add('show');
+      if (id === 'agendar' || id === 'whatsapp') { confirmMode = false; hideOptions(); }
       if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); showTyping(); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
     }, 150);
   }
@@ -292,6 +294,7 @@
   function showTyping() { stage.classList.add('typing'); }
   function showConfirm(d) {
     showTyping();
+    confirmMode = true;
     leadData = { nome: d.nome || leadData.nome || '', email: d.email || leadData.email || '', whatsapp: ((d.whatsapp || leadData.whatsapp || '') + '').replace(/\D/g, ''), empresa: d.empresa || leadData.empresa || '' };
     visual.classList.remove('show');
     options.innerHTML = '<div class="q">Confere se está tudo certo:</div>' +
@@ -348,8 +351,8 @@
     if (playHead < now + 0.05) { // novo turno de fala do Waz
       playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
       turnLive = true; visShownInTurn = 0; visTurnTotal = visQueue.length; // slides desta fala entram ao longo das palavras (o 1º após ~4)
-      if (spokeSinceOptions) { // a pessoa respondeu por voz: a pergunta anterior já era
-        if (!options.classList.contains('hidden')) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
+      if (spokeSinceOptions) { // a pessoa respondeu por voz: limpa perguntas antigas — MAS nunca o cartão de confirmação
+        if (!options.classList.contains('hidden') && !confirmMode) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
         spokeSinceOptions = false;
       }
     }
