@@ -528,6 +528,19 @@
     setTimeout(function () { stage.classList.remove('on'); hero.classList.remove('hidden'); window.scrollTo(0, 0); }, 2500);
   }
   $('end').addEventListener('click', function () { end(false); });
+  var hiddenAt = 0;
+  document.addEventListener('visibilitychange', function () {
+    if (!active) return;
+    if (document.hidden) { hiddenAt = Date.now(); }
+    else {
+      if (outCtx && outCtx.state === 'suspended') outCtx.resume().catch(function () {});
+      var fora = Date.now() - hiddenAt;
+      if (ws && ws.readyState === 1 && hiddenAt && fora > 4000) {
+        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante saiu da tela por um momento e acabou de voltar. Dê boas-vindas de volta em uma frase curta e simpática ("opa, você voltou!") e retome exatamente de onde a conversa parou.' }] }], turnComplete: true } }));
+      } else if ((!ws || ws.readyState > 1) && resumeHandle && !reconnecting) { reconnect(); }
+      hiddenAt = 0;
+    }
+  });
   window.addEventListener('pagehide', function () { if (active) track('encerrado', { por: 'saiu', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript }); });
   window.__wazDebug = { showVisual: showVisual, showConfirm: showConfirm, showOptions: showOptions, ctx: function () { return outCtx && { state: outCtx.state, t: outCtx.currentTime, playHead: playHead, words: capWords.length, lvl: outLevel() }; } };
   $('start').addEventListener('click', start);

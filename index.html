@@ -170,6 +170,7 @@
   .bar .row { display: flex; gap: 8px; align-items: center; }
   .ctl { width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid var(--line); background: #fff; display: grid; place-items: center; flex: 0 0 48px; color: var(--ink); position: relative; }
   .ctl svg { width: 22px; height: 22px; fill: currentColor; }
+  #liveBtn:not(.on) { opacity: .45; }
   .ctl.on { background: var(--green); border-color: var(--green); color: #fff; }
   .ctl.rec { background: #dc2626; border-color: #dc2626; color: #fff; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.4); } 50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); } }
@@ -230,7 +231,7 @@
     <div class="row">
       <button class="ctl" id="liveBtn" title="Microfone ao vivo (ligação)">
         <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-        <small>Ligado</small>
+        <small>Microfone</small>
       </button>
       <input id="text" type="text" placeholder="Digite aqui…" autocomplete="off" class="type-el" />
       <button class="ctl send type-el" id="sendBtn" title="Enviar">
@@ -241,6 +242,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608231749" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608231809" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>
