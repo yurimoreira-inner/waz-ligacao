@@ -30,7 +30,7 @@
   var ws = null, micCtx = null, micStream = null, micNode = null, outCtx = null, playHead = 0, sources = [];
   var micLvl = 0, micPeak = 0, connected = false, micBlocked = false;
   var liveMode = false, recording = false, active = false, startedAt = 0, leadSent = false;
-  var micAsked = false, userAnswered = false, nudgeTimer = null;
+  var micAsked = false, userAnswered = false, nudgeTimer = null, spokeSinceOptions = false;
   var transcript = [], curOut = '', curIn = '';
   var resumeHandle = null, reconnecting = false, setupCfg = null;
 
@@ -154,7 +154,8 @@
 
   function showVisual(id) {
     if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); pendingVisual = null; return; }
-    if (!options.classList.contains('hidden')) { pendingVisual = id; return; } // opções têm prioridade; visual entra após a resposta
+    if (!options.classList.contains('hidden') && !spokeSinceOptions) { pendingVisual = id; return; } // opções têm prioridade até a pessoa responder (clique, texto ou voz)
+    if (spokeSinceOptions) hideOptions();
     visual.classList.remove('show');
     setTimeout(function () {
       visual.innerHTML = typeof VIS[id] === 'function' ? VIS[id]() : VIS[id];
@@ -172,7 +173,7 @@
   var lastQuestion = '';
   function showOptions(args) {
     var opts = args.opcoes || [];
-    lastQuestion = args.pergunta || ''; track('pergunta_mostrada', { pergunta: lastQuestion });
+    lastQuestion = args.pergunta || ''; spokeSinceOptions = false; curIn = ''; track('pergunta_mostrada', { pergunta: lastQuestion });
     var h = '<div class="q">' + esc(args.pergunta || '') + '</div><div class="opts">';
     opts.forEach(function (o) { h += '<button class="opt">' + esc(o) + '</button>'; });
     h += '</div>';
@@ -238,8 +239,16 @@
     if (outCtx.state === 'suspended') outCtx.resume().catch(function () {});
     var f = fromB64(data), buf = outCtx.createBuffer(1, f.length, OUT_RATE); buf.getChannelData(0).set(f);
     var src = outCtx.createBufferSource(); src.buffer = buf; src.connect(analyser || outCtx.destination);
-    var now = outCtx.currentTime; if (playHead < now + 0.05) { playHead = now + 0.25; turnAudioStart = playHead; } // buffer inicial evita engasgo quando a rede oscila
+    var now = outCtx.currentTime;
+    if (playHead < now + 0.05) { // novo turno de fala do Waz
+      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false;
+      if (spokeSinceOptions) { // a pessoa respondeu por voz: a pergunta anterior já era
+        if (!options.classList.contains('hidden')) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
+        spokeSinceOptions = false;
+      }
+    }
     src.start(playHead); playHead += buf.duration; sources.push(src);
+    retimeCaption();
     src.onended = function () { sources = sources.filter(function (s) { return s !== src; }); };
   }
   var analyser = null, anBuf = null, mediaDest = null, audioEl = null;
@@ -264,7 +273,7 @@
     var sum = 0; for (var i = 0; i < anBuf.length; i++) { var v = (anBuf[i] - 128) / 128; sum += v * v; }
     return Math.sqrt(sum / anBuf.length);
   }
-  function stopPlayback() { capLastT = 0; turnAudioStart = 0; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
+  function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
   // ---------- vídeo do rosto dirigido pela energia da voz ----------
   // A boca se mexe só quando há voz (pausa nas pausas) e a velocidade acompanha a intensidade.
@@ -300,22 +309,27 @@
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
   function fixName(t) { return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
-  var turnAudioStart = 0;
+  var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.35; // atraso pequeno: o texto costuma chegar antes do som
   function feedCaption(chunk) {
     if (!outCtx) return;
     var words = fixName(chunk).split(/\s+/).filter(Boolean);
     if (!words.length) return;
-    var now = outCtx.currentTime;
-    // Início: onde a legenda anterior parou; na primeira do turno, o instante em que o áudio do turno começou a tocar.
-    var start = capLastT > 0 ? capLastT : (turnAudioStart || now);
-    if (start < now - 0.5) start = now - 0.1;                        // atrasou: mostra já
-    // Fim: nunca além do áudio agendado, e nunca esticando mais que o ritmo natural de fala
-    var natural = start + words.length * SEC_PER_WORD;
-    var end = Math.min(Math.max(playHead, start + words.length * 0.15), natural * 1.0 + 0.0);
-    if (end <= start) end = start + words.length * SEC_PER_WORD;
-    var step = (end - start) / words.length;
-    words.forEach(function (w, i) { capWords.push({ w: w, t: start + step * i }); });
-    capLastT = end;
+    words.forEach(function (w) { var o = { w: w, t: Infinity }; turnWords.push(o); capWords.push(o); });
+    retimeCaption();
+  }
+  // Mapeamento proporcional: a i-ésima palavra do turno fica em início + (i / total) × duração de áudio já recebida.
+  // Recalculado a cada pacote de texto ou áudio, então se corrige sozinho quando um dos dois chega antes.
+  function retimeCaption() {
+    if (!outCtx || !turnWords.length) return;
+    var start = turnAudioStart || outCtx.currentTime;
+    var dur = Math.max(0, playHead - start);
+    var n = turnWords.length;
+    // se o áudio ainda não cobre as palavras recebidas, estima o restante pelo ritmo médio observado (ou 0,38 s/palavra)
+    var rate = dur > 2 ? dur / n : 0.38;
+    for (var i = 0; i < n; i++) {
+      var t = start + (dur > 0 ? (i / n) * Math.max(dur, n * rate * 0.9) : i * rate) + CAP_LAG;
+      turnWords[i].t = t;
+    }
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
   var CAP_WORDS = 7;
@@ -336,7 +350,7 @@
     }
   }
   var capLine = [];
-  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; }
+  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; turnWords = []; }
   function setCaption(t, status) { resetCaption(); caption.textContent = t; caption.classList.toggle('status', !!status); }
   function setLive(on, label) { liveEl.classList.toggle('on', on); liveEl.querySelector('span').textContent = label; }
   var lvBars = liveEl.querySelectorAll('.lv b'), hearingUntil = 0;
@@ -409,7 +423,7 @@
     var sc = msg.serverContent;
     if (sc) {
       if (sc.interrupted) { stopPlayback(); resetCaption(); return; }
-      if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; userAnswered = true; }
+      if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; userAnswered = true; spokeSinceOptions = true; }
       if (sc.outputTranscription && sc.outputTranscription.text) {
         if (curIn) { push('cliente', curIn); curIn = ''; }
         curOut += fixName(sc.outputTranscription.text); feedCaption(sc.outputTranscription.text);
