@@ -100,7 +100,7 @@
     ]),
   };
   var slot = $('slot'), pendingVisual = null, confirmMode = false;
-  var shownSlides = {}, gateNudgeAt = 0;
+  var shownSlides = {}, gateNudgeAt = 0, travaCount = 0;
   // Encaixa o conteúdo do palco no espaço disponível (sem rolagem): reduz a escala se precisar.
   function fitSlot(el) {
     el.style.transform = ''; el.style.marginBottom = '';
@@ -322,12 +322,18 @@
     if (id) shownSlides[id] = true;
     // TRAVA MECÂNICA: calendário/WhatsApp só depois do Pitch (preço + funcionalidades mostrados)
     if ((id === 'agendar' || id === 'whatsapp') && !pitchFeito()) {
-      if (ws && ws.readyState === 1 && Date.now() - gateNudgeAt > 20000) {
-        gateNudgeAt = Date.now();
-        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'TRAVA DO SISTEMA (não leia isto em voz alta): o Pitch ainda não aconteceu. Antes de agendar ou mandar pro WhatsApp, faça AGORA o Pitch compacto — apresentando APENAS o que ainda não apresentou nesta conversa (funcionalidades com os slides funcao_, credibilidade, preço com comparativo_sdr, comparativo_waz e preco, garantia). Não repita nada que o lead já ouviu. Ao terminar, se ele mantiver o interesse, chame mostrar_visual com id agendar DE NOVO para abrir o calendário — sem isso ele não consegue marcar.' }] }], turnComplete: true } }));
-        track('trava_pitch', {});
+      // válvula de escape: se o modelo insistir em pular o Pitch, na 2ª vez deixa passar —
+      // melhor agendar sem pitch do que cansar o lead num cabo de guerra
+      if (travaCount >= 1) { track('trava_liberada', {}); } // deixa passar: segue para mostrar o calendário
+      else {
+        if (ws && ws.readyState === 1 && Date.now() - gateNudgeAt > 20000) {
+          travaCount++;
+          gateNudgeAt = Date.now();
+          ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'TRAVA DO SISTEMA (não leia isto em voz alta): o Pitch ainda não aconteceu. Antes de agendar ou mandar pro WhatsApp, faça AGORA o Pitch compacto — apresentando APENAS o que ainda não apresentou nesta conversa (funcionalidades com os slides funcao_, credibilidade, preço com comparativo_sdr, comparativo_waz e preco, garantia). Não repita nada que o lead já ouviu. Ao terminar, se ele mantiver o interesse, chame mostrar_visual com id agendar DE NOVO para abrir o calendário — sem isso ele não consegue marcar.' }] }], turnComplete: true } }));
+          track('trava_pitch', {});
+        }
+        return;
       }
-      return;
     }
     if (id && id.indexOf('demo_') === 0) { if (!confirmMode) hideOptions(); pendingVisual = null; showDemo(id); return; }
     demoStage = -1;
@@ -492,9 +498,9 @@
       if (micCtx && micCtx.state === 'suspended') micCtx.resume().catch(function () {});
       if (audioEl && audioEl.paused && audioEl.srcObject) { var p = audioEl.play(); if (p && p.catch) p.catch(function () {}); }
     }
-    if (waitingReply && Date.now() - waitingReply > 14000 && ws && ws.readyState === 1) {
+    if (waitingReply && Date.now() - waitingReply > 10000 && ws && ws.readyState === 1) {
       if (nudges < 2) { nudges++; waitingReply = Date.now(); ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
-      else waitingReply = 0;
+      else { waitingReply = 0; reviveSession(); } // dois cutucões ignorados = sessão morta: renasce
     }
     renderCaption(); requestAnimationFrame(tick);
   })(performance.now());
@@ -595,6 +601,26 @@
     } catch (e) { setCaption('Não consegui conectar agora. Tente de novo em instantes.', true); setTimeout(function () { if (active && !connected) end(false); }, 2600); }
   }
 
+  // Renascimento de sessão morta: o WS está aberto mas o modelo não gera nada (cota, soluço do servidor).
+  // Fecha na marra, abre sessão NOVA (alternando o modelo) e recoloca o contexto pela transcrição.
+  // Se nem isso salvar, entrega o WhatsApp — o lead nunca fica no silêncio.
+  var revives = 0, altModel = false;
+  var ALT_MODEL = 'models/gemini-3.1-flash-live-preview';
+  function reviveSession() {
+    if (!active || reconnecting) return;
+    track('sessao_morta', { revives: revives });
+    if (revives >= 2) {
+      setCaption('Estamos com uma instabilidade agora — me chama no WhatsApp que eu te atendo por lá!', true);
+      travaCount = 9; // último recurso passa por cima da trava do Pitch
+      showVisualNow('whatsapp');
+      return;
+    }
+    revives++; altModel = !altModel;
+    setCaption('Um instante, já volto com você…', true);
+    resumeHandle = null; // sessão nova de verdade: o estado travado pode morar no handle
+    try { ws.onclose = null; ws.close(); } catch (e) {}
+    scheduleReconnect();
+  }
   // Reconexão resiliente: várias tentativas com espera crescente; com handle retoma a sessão,
   // sem handle abre sessão nova e recoloca o modelo no contexto pela transcrição.
   var reconAttempt = 0, reconNeedsContext = false;
@@ -613,6 +639,7 @@
       var cfg = await res.json(); if (!res.ok || cfg.error) throw new Error('token');
       if (resumeHandle) { cfg.setup.setup.sessionResumption = { handle: resumeHandle }; reconNeedsContext = false; }
       else reconNeedsContext = true;
+      if (altModel) cfg.setup.setup.model = ALT_MODEL; // renascimento alterna o modelo: cotas e servidores diferentes
       var nws = new WebSocket(cfg.wsUrl), mine = nws, chain = Promise.resolve();
       ws = nws;
       nws.onopen = function () { mine.send(JSON.stringify(cfg.setup)); };
@@ -642,6 +669,7 @@
       connected = true; setLive(true, 'Ao vivo · microfone ligado'); track('conectado', { mic: liveMode });
       setCaption('', true);
       ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante acabou de clicar em Começar. Faça sua abertura.' }] }], turnComplete: true } }));
+      waitingReply = Date.now(); // vigia também na abertura: se nada tocar, cutuca e renasce
       return;
     }
     var sc = msg.serverContent;
@@ -725,7 +753,7 @@
   function end(fromServer) {
     endCompactOff();
     if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript });
-    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; reconnecting = false; reconAttempt = 0; reconNeedsContext = false; resumeHandle = null; waitingReply = 0; nudges = 0; pendingSends = []; if (nudgeTimer) clearTimeout(nudgeTimer);
+    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; travaCount = 0; revives = 0; altModel = false; reconnecting = false; reconAttempt = 0; reconNeedsContext = false; resumeHandle = null; waitingReply = 0; nudges = 0; pendingSends = []; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
