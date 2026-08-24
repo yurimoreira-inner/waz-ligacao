@@ -254,13 +254,52 @@
     visQueue.push({ id: id, at: at });
     visTurnTotal = visShownInTurn + visQueue.length;
   }
+  // Congruência definitiva: cada slide tem palavras-gatilho; ele entra quando a FALA chega no tema.
+  var VIS_KW = {
+    funcao_qualificacao: /curios|qualific|pronto pra comprar|pergunta[s]? cert/,
+    funcao_agendamento: /agenda|horari|marcar/,
+    funcao_propostas: /propost/,
+    funcao_pix: /\bpix\b|pagament|ponta a ponta/,
+    funcao_followup: /follow|\bsome\b|sumiu|vinte e oito|volto na hora/,
+    funcao_reativacao: /reativ|base parada|ja comprou|antigo/,
+    crm_funil: /funil|\bcrm\b|organizad|bate o olho/,
+    crm_automatico: /funil|\bcrm\b|sozinho de fase|automatic/,
+    crm_historico: /historic|registrad/,
+    quem_esta_por_tras: /squad|inner|\bvivo\b|embraer|mercado livre|\bfaap\b|movida|por tras|quem ta por/,
+    comparativo_sdr: /atendente|carteira|encargos|mil e novecentos|contratar/,
+    comparativo_waz: /compara|linha a linha/,
+    preco: /dois mil|custo a partir|meio funcionario|garantia|risco/,
+    insight_5min: /cinco minutos|vinte e uma vezes/,
+    insight_magalu: /magalu|magazine|cem milhoes/,
+    insight_whatsapp: /maior canal/,
+    insight_comportamento: /resposta na hora|comportament/,
+    pilar_velocidade: /sete vezes|primeira hora|velocid|rapid/,
+    pilar_resposta: /senha de fila|mensagem automatic/,
+    pilar_qualificacao: /curios|qualific/,
+    exemplo_conversa: /exemplo|olha essa conversa|sem resposta/,
+    como_funciona: /sete dias|diagnostic|como funciona|a gente monta/,
+    depoimentos: /ariane|brasil graos|depoiment|nossos clientes dizem/,
+    resultados: /brigadayros|resultad|cem mil por mes/,
+  };
+  function normW(w) { return String(w).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function kwIndex(id, fromWord) {
+    var re = VIS_KW[id]; if (!re) return -1;
+    for (var i = Math.max(0, fromWord); i < turnWords.length; i++) {
+      var seg = normW(turnWords[i].w) + ' ' + (turnWords[i + 1] ? normW(turnWords[i + 1].w) : '') + ' ' + (turnWords[i + 2] ? normW(turnWords[i + 2].w) : '');
+      if (re.test(seg)) return i;
+    }
+    return -1;
+  }
   function pumpVisualQueue(shownWords) {
     if (!visQueue.length) return;
     var head = visQueue[0];
     var total = turnWords.length || 1;
-    var target = head.at != null ? head.at : Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
-    // respiro mínimo entre slides da mesma fala: nada de despejar vários de uma vez
-    if (lastVisAt) target = Math.max(target, lastVisAt + 10);
+    // 1º: palavra-gatilho (sincronia real com o assunto); busca sempre À FRENTE do último slide mostrado
+    if (head.kw == null || head.kw < lastVisAt) head.kw = kwIndex(head.id, lastVisAt);
+    var target, gap;
+    if (head.kw != null && head.kw >= 0) { target = head.kw; gap = 5; }
+    else { target = head.at != null ? head.at : Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total)); gap = 10; }
+    if (lastVisAt) target = Math.max(target, lastVisAt + gap); // respiro mínimo entre slides
     if (shownWords >= target) { lastVisAt = shownWords; showVisualNow(visQueue.shift().id); visShownInTurn++; }
   }
   var VIS_ALIAS = { funcoes: 'funcao_qualificacao', funcao: 'funcao_qualificacao', crm: 'crm_funil', comparativo: 'comparativo_waz', demo: 'demo_pergunta', demonstracao: 'demo_pergunta', pilares: 'pilar_velocidade', preco_waz: 'preco', precos: 'preco', valor: 'preco', garantia: 'preco', resultado: 'resultados', casos: 'resultados', cases: 'resultados', depoimento: 'depoimentos', autoridade: 'quem_esta_por_tras', squad: 'quem_esta_por_tras', calendario: 'agendar', insight: 'insight_5min' };
@@ -305,7 +344,12 @@
         visual.querySelectorAll('.dots i').forEach(function (d, k) { d.classList.toggle('on', k === i); });
       });
       visual.classList.add('show');
-      if (id === 'agendar' || id === 'whatsapp') { confirmMode = false; hideOptions(); }
+      if (id === 'agendar' || id === 'whatsapp') {
+        // confirmou por voz com o cartão aberto? colhe o que estiver nos campos (inclusive edições digitadas)
+        var cn = $('cf-nome'), ce = $('cf-email'), cw = $('cf-whats'), cp = $('cf-empresa');
+        if (cn && ce && cw) leadData = { nome: cn.value.trim(), empresa: cp ? cp.value.trim() : (leadData.empresa || ''), email: ce.value.trim(), whatsapp: cw.value.replace(/\D/g, '') };
+        confirmMode = false; pendingVisual = null; hideOptions();
+      }
       if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); showTyping(); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
     }, 150);
   }
@@ -344,6 +388,7 @@
     $('cf-ok').addEventListener('click', function () {
       leadData = { nome: $('cf-nome').value.trim(), empresa: $('cf-empresa').value.trim(), email: $('cf-email').value.trim(), whatsapp: $('cf-whats').value.replace(/\D/g, '') };
       track('dados_confirmados', leadData);
+      confirmMode = false; // sem isso, todo slide seguinte ficava bloqueado como pendente
       hideOptions();
       sendText('Dados confirmados: nome=' + leadData.nome + '; empresa=' + leadData.empresa + '; email=' + leadData.email + '; whatsapp=' + leadData.whatsapp, 'Dados confirmados');
     });
@@ -365,6 +410,13 @@
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     } catch (e) { micBlocked = true; showTyping(); liveEl.className = 'live muted'; liveEl.querySelector('span').textContent = 'Microfone bloqueado · pode digitar'; return false; }
+    // se o sistema derrubar o microfone (ligação recebida, outro app), libera para religar com um toque
+    micStream.getTracks().forEach(function (tr) { tr.onended = function () {
+      try { if (micCtx) micCtx.close().catch(function () {}); } catch (e) {}
+      micCtx = null; micNode = null; micStream = null; liveMode = false;
+      liveBtn.classList.remove('on'); liveBtn.querySelector('small').textContent = 'Mudo';
+      liveEl.className = 'live muted'; liveEl.querySelector('span').textContent = 'Microfone caiu · toque no botão pra religar';
+    }; });
     micCtx = new (window.AudioContext || window.webkitAudioContext)();
     await micCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([workletCode], { type: 'text/javascript' })));
     micNode = new AudioWorkletNode(micCtx, 'waz-cap');
@@ -386,7 +438,7 @@
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
       playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
-      turnLive = true; visShownInTurn = 0; lastVisAt = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; }); // nova fala: âncoras antigas não valem mais
+      turnLive = true; visShownInTurn = 0; lastVisAt = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; q.kw = null; q.scanned = 0; }); // nova fala: âncoras e gatilhos antigos não valem mais
       if (spokeSinceOptions) { // a pessoa respondeu por voz: limpa perguntas antigas — MAS nunca o cartão de confirmação
         if (!options.classList.contains('hidden') && !confirmMode) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
         spokeSinceOptions = false;
@@ -426,13 +478,24 @@
   function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; visQueue = []; visShownInTurn = 0; visTurnTotal = 0; turnLive = false; lastVisAt = 0; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
   // ---------- rosto fixo; só as ondas indicam a fala ----------
-  var wasSpeaking = false;
+  var wasSpeaking = false, lastCtxKick = 0, nudges = 0;
   (function tick(now) {
+    now = now || performance.now();
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
     if (sp !== wasSpeaking) { wasSpeaking = sp; if (!sp && visQueue.length) { turnLive = false; visShownInTurn = 0; var lastQ = visQueue[visQueue.length - 1].id; visQueue = []; showVisualNow(lastQ); } else if (!sp) { turnLive = false; visShownInTurn = 0; } }
-    updateMicChip(now || performance.now());
-    if (waitingReply && Date.now() - waitingReply > 14000 && ws && ws.readyState === 1) { waitingReply = 0; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
+    updateMicChip(now);
+    // anti-congelamento: contextos de áudio suspensos (interrupção do iOS, troca de app) são religados sozinhos
+    if (active && now - lastCtxKick > 1500) {
+      lastCtxKick = now;
+      if (outCtx && outCtx.state === 'suspended') outCtx.resume().catch(function () {});
+      if (micCtx && micCtx.state === 'suspended') micCtx.resume().catch(function () {});
+      if (audioEl && audioEl.paused && audioEl.srcObject) { var p = audioEl.play(); if (p && p.catch) p.catch(function () {}); }
+    }
+    if (waitingReply && Date.now() - waitingReply > 14000 && ws && ws.readyState === 1) {
+      if (nudges < 2) { nudges++; waitingReply = Date.now(); ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
+      else waitingReply = 0;
+    }
     renderCaption(); requestAnimationFrame(tick);
   })(performance.now());
 
@@ -499,6 +562,12 @@
       lvBars[0].style.height = (h * 0.6) + 'px'; lvBars[1].style.height = h + 'px'; lvBars[2].style.height = (h * 0.75) + 'px'; }
   }
 
+  function fetchToken() { // com teto de 12s: uma API lenta não pode congelar a tela
+    var ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ac ? setTimeout(function () { ac.abort(); }, 12000) : null;
+    return fetch(ENDPOINT + '/token?v=2', ac ? { method: 'POST', signal: ac.signal } : { method: 'POST' })
+      .then(function (r) { if (timer) clearTimeout(timer); return r; }, function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
   async function start() {
     if (active) return; active = true; leadSent = false; transcript = [];
     track('start_click');
@@ -508,7 +577,7 @@
     if (outCtx.state !== 'running') outCtx.resume().catch(function () {});
     setupAnalyser();
     try {
-      var res = await fetch(ENDPOINT + '/token?v=2', { method: 'POST' });
+      var res = await fetchToken();
       var cfg = await res.json(); if (!res.ok || cfg.error) throw new Error(cfg.error || res.status);
       if (ws) { try { ws.onclose = null; ws.close(); } catch (e) {} }
       ws = new WebSocket(cfg.wsUrl);
@@ -523,7 +592,7 @@
       ws.onclose = function (e) { if (!active || ws !== mine) return; scheduleReconnect(); };
       startedAt = Date.now();
       // O microfone só é pedido quando o Waz termina a abertura (momento em que a pessoa quer responder).
-    } catch (e) { setCaption('Não consegui conectar agora. Tente de novo em instantes.', true); }
+    } catch (e) { setCaption('Não consegui conectar agora. Tente de novo em instantes.', true); setTimeout(function () { if (active && !connected) end(false); }, 2600); }
   }
 
   // Reconexão resiliente: várias tentativas com espera crescente; com handle retoma a sessão,
@@ -540,7 +609,7 @@
     reconAttempt++;
     if (reconAttempt > 4) { reconnecting = false; end(true); return; }
     try {
-      var res = await fetch(ENDPOINT + '/token?v=2', { method: 'POST' });
+      var res = await fetchToken();
       var cfg = await res.json(); if (!res.ok || cfg.error) throw new Error('token');
       if (resumeHandle) { cfg.setup.setup.sessionResumption = { handle: resumeHandle }; reconNeedsContext = false; }
       else reconNeedsContext = true;
@@ -566,6 +635,7 @@
     if (msg.setupComplete && reconnecting) {
       reconnecting = false; reconAttempt = 0; connected = true; setLive(true, 'Ao vivo · microfone ligado');
       if (reconNeedsContext) { reconNeedsContext = false; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: resumeContextMsg() }] }], turnComplete: true } })); }
+      pendingSends.splice(0).forEach(function (m) { try { ws.send(m); } catch (e) {} }); // entrega o que ficou represado
       return;
     }
     if (msg.setupComplete) {
@@ -576,14 +646,14 @@
     }
     var sc = msg.serverContent;
     if (sc) {
-      if (sc.interrupted) { var keepQ = visQueue.slice(); stopPlayback(); visQueue = keepQ; visQueue.forEach(function (q) { q.at = null; }); visTurnTotal = visQueue.length; resetCaption(); return; } // interrupção não descarta os slides pendentes: eles entram na próxima fala
+      if (sc.interrupted) { var keepQ = visQueue.slice(); stopPlayback(); visQueue = keepQ; visQueue.forEach(function (q) { q.at = null; q.kw = null; q.scanned = 0; }); visTurnTotal = visQueue.length; resetCaption(); return; } // interrupção não descarta os slides pendentes: eles entram na próxima fala
       if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; userAnswered = true; spokeSinceOptions = true; waitingReply = Date.now(); } // fala por voz também arma o vigia de resposta
       if (sc.outputTranscription && sc.outputTranscription.text) {
         if (curIn) { push('cliente', curIn); curIn = ''; }
         curOut += fixName(sc.outputTranscription.text); feedCaption(sc.outputTranscription.text);
       }
       (sc.modelTurn && sc.modelTurn.parts || []).forEach(function (p) { if (p.inlineData && p.inlineData.data) playChunk(p.inlineData.data); });
-      if (sc.modelTurn) waitingReply = 0;
+      if (sc.modelTurn) { waitingReply = 0; nudges = 0; }
       if (sc.turnComplete) {
         if (curOut) { push('waz', curOut); curOut = ''; } capLastT = 0;
         if (transcript.length % 4 === 0) track('transcricao', { transcricao: transcript }); // salva a transcrição parcial (abandonos)
@@ -605,7 +675,7 @@
   }
   async function askMicAfterOpening() {
     // espera o áudio da abertura terminar de tocar, aí pede o microfone
-    var wait = outCtx ? Math.max(0, (playHead - outCtx.currentTime) * 1000) + 150 : 0;
+    var wait = outCtx ? Math.min(30000, Math.max(0, (playHead - outCtx.currentTime) * 1000) + 150) : 0; // teto: nunca espera pra sempre
     setTimeout(async function () {
       if (!active) return;
       var ok = await ensureMic();
@@ -622,13 +692,14 @@
   }
   function push(role, text) { transcript.push({ role: role, text: fixName(text) }); }
 
-  var waitingReply = 0;
+  var waitingReply = 0, pendingSends = [];
   function sendText(payload, shown) {
-    if (!ws || ws.readyState !== 1) return;
     userAnswered = true; waitingReply = Date.now();
     stopPlayback(); curOut = ''; resetCaption();
     push('cliente', shown || payload);
-    ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: payload }] }], turnComplete: true } }));
+    var m = JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: payload }] }], turnComplete: true } });
+    if (!ws || ws.readyState !== 1) { pendingSends.push(m); return; } // conexão caiu? guarda e envia após reconectar
+    ws.send(m);
   }
   function sendLead(args) {
     if (leadSent) return; leadSent = true;
@@ -654,7 +725,7 @@
   function end(fromServer) {
     endCompactOff();
     if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript });
-    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; reconnecting = false; reconAttempt = 0; reconNeedsContext = false; resumeHandle = null; waitingReply = 0; if (nudgeTimer) clearTimeout(nudgeTimer);
+    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; reconnecting = false; reconAttempt = 0; reconNeedsContext = false; resumeHandle = null; waitingReply = 0; nudges = 0; pendingSends = []; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
