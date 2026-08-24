@@ -503,7 +503,7 @@
   // Legenda sincronizada com o áudio, exibida por FRASE (quebra só em pontuação).
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
-  function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); t = t.replace(/\b(mostrar_visual|registrar_contexto|registrar_lead|confirmar_dados)\s*\(?[^)\s]*\)?;?/g, ' '); t = t.replace(/\b[a-z]+_[a-z]+\s*\(\s*["']?[a-z_]*["']?\s*\)\s*;?/gi, ' '); t = t.replace(/\b(funcao|comparativo|insight|pilar|demo|crm)_[a-z_]+\b/g, ' '); t = t.replace(/[(\[](?:risad|riso|sorri|pausa|tom |suspir)[^)\]]*[)\]]/gi, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
+  function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); t = t.replace(/\b(mostrar_visual|registrar_contexto|registrar_lead|confirmar_dados)\s*\(?[^)\s]*\)?;?/g, ' '); t = t.replace(/\b[a-z]+_[a-z]+\s*\(\s*["']?[a-z_]*["']?\s*\)\s*;?/gi, ' '); t = t.replace(/\b(funcao|comparativo|insight|pilar|demo|crm)_[a-z_]+\b/g, ' '); t = t.replace(/[(\[](?:risad|riso|sorri|pausa|tom |suspir)[^)\]]*[)\]]/gi, ' '); t = t.replace(/<ctrl\d+>/gi, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos|voz|vez)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[óô][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
   var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.25; // atraso pequeno: o texto costuma chegar antes do som
   function feedCaption(chunk) {
     if (!outCtx) return;
@@ -737,14 +737,17 @@
     setTimeout(function () { stage.classList.remove('on'); hero.classList.remove('hidden'); window.scrollTo(0, 0); }, 2500);
   }
   $('end').addEventListener('click', function () { end(false); });
-  var hiddenAt = 0;
+  var hiddenAt = 0, lastVoltou = 0;
   document.addEventListener('visibilitychange', function () {
     if (!active) return;
     if (document.hidden) { hiddenAt = Date.now(); }
     else {
       if (outCtx && outCtx.state === 'suspended') outCtx.resume().catch(function () {});
+      if (micCtx && micCtx.state === 'suspended') micCtx.resume().catch(function () {});
       var fora = Date.now() - hiddenAt;
-      if (ws && ws.readyState === 1 && hiddenAt && fora > 4000) {
+      // só comenta a volta em ausências longas, e no máximo uma vez por minuto — trocar de app rapidinho não conta
+      if (ws && ws.readyState === 1 && hiddenAt && fora > 25000 && Date.now() - lastVoltou > 60000) {
+        lastVoltou = Date.now();
         ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante saiu da tela por um momento e acabou de voltar. Dê boas-vindas de volta em uma frase curta e simpática ("opa, você voltou!") e retome exatamente de onde a conversa parou.' }] }], turnComplete: true } }));
       } else if ((!ws || ws.readyState > 1) && !reconnecting) { scheduleReconnect(); }
       hiddenAt = 0;
