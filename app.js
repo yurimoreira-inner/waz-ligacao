@@ -285,7 +285,7 @@
     if ((id === 'agendar' || id === 'whatsapp') && !pitchFeito()) {
       if (ws && ws.readyState === 1 && Date.now() - gateNudgeAt > 20000) {
         gateNudgeAt = Date.now();
-        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'TRAVA DO SISTEMA (não leia isto em voz alta): o Pitch ainda não aconteceu. Antes de agendar ou mandar pro WhatsApp, faça AGORA o Pitch compacto — apresentando APENAS o que ainda não apresentou nesta conversa (funcionalidades com os slides funcao_, credibilidade, preço com comparativo_sdr, comparativo_waz e preco, garantia). Não repita nada que o lead já ouviu. Depois retome o fechamento.' }] }], turnComplete: true } }));
+        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'TRAVA DO SISTEMA (não leia isto em voz alta): o Pitch ainda não aconteceu. Antes de agendar ou mandar pro WhatsApp, faça AGORA o Pitch compacto — apresentando APENAS o que ainda não apresentou nesta conversa (funcionalidades com os slides funcao_, credibilidade, preço com comparativo_sdr, comparativo_waz e preco, garantia). Não repita nada que o lead já ouviu. Ao terminar, se ele mantiver o interesse, chame mostrar_visual com id agendar DE NOVO para abrir o calendário — sem isso ele não consegue marcar.' }] }], turnComplete: true } }));
         track('trava_pitch', {});
       }
       return;
@@ -440,7 +440,7 @@
   // Legenda sincronizada com o áudio, exibida por FRASE (quebra só em pontuação).
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
-  function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); t = t.replace(/\b(mostrar_visual|registrar_contexto|registrar_lead|confirmar_dados)\s*\(?[^)\s]*\)?;?/g, ' '); t = t.replace(/\b(funcao|comparativo|insight|pilar|demo|crm)_[a-z_]+\b/g, ' '); t = t.replace(/[(\[](?:risad|riso|sorri|pausa|tom |suspir)[^)\]]*[)\]]/gi, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
+  function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); t = t.replace(/\b(mostrar_visual|registrar_contexto|registrar_lead|confirmar_dados)\s*\(?[^)\s]*\)?;?/g, ' '); t = t.replace(/\b[a-z]+_[a-z]+\s*\(\s*["']?[a-z_]*["']?\s*\)\s*;?/gi, ' '); t = t.replace(/\b(funcao|comparativo|insight|pilar|demo|crm)_[a-z_]+\b/g, ' '); t = t.replace(/[(\[](?:risad|riso|sorri|pausa|tom |suspir)[^)\]]*[)\]]/gi, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
   var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.25; // atraso pequeno: o texto costuma chegar antes do som
   function feedCaption(chunk) {
     if (!outCtx) return;
