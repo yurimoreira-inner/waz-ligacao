@@ -29,9 +29,15 @@
   table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; font-size:13px; }
   th { text-align:left; padding:10px; background:#f9fbfa; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted2); border-bottom:1px solid var(--line); }
   td { padding:10px; border-bottom:1px solid var(--line); vertical-align:top; } tr:hover td { background:#fafcfb; }
-  .tag { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#eef1ef; color:var(--muted); }
+  .tag { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; background:#eef1ef; color:var(--muted); white-space:nowrap; }
   .tag.q { background:var(--green-soft); color:var(--green-dark); } .tag.w { background:#e0f2fe; color:#0369a1; }
-  .wrap { overflow-x:auto; }
+  .tag.hot { background:#ffedd5; color:#c2410c; } .tag.warm { background:#fef9c3; color:#a16207; } .tag.no { background:#fee2e2; color:#b91c1c; }
+  .wrap { overflow-x:auto; border-radius:14px; }
+  td .sub { display:block; font-size:11px; color:var(--muted2); margin-top:3px; font-weight:400; }
+  .ell { max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .ell.s { max-width:100px; } .ell.l { max-width:190px; }
+  td a.mail { color:var(--muted); text-decoration:none; } td a.mail:hover { text-decoration:underline; }
+  table button { padding:5px 11px; border-radius:8px; font-size:12px; }
   dialog { border:none; border-radius:16px; padding:0; width:min(720px,94vw); } dialog .in { padding:18px; max-height:80vh; overflow:auto; }
   .t { font-size:13px; line-height:1.5; margin:6px 0; } .t.waz b { color:var(--green-dark); } .t.cliente b { color:#0369a1; }
   .muted { color:var(--muted2); font-size:12px; }
@@ -56,6 +62,19 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const waMsg = (nome) => encodeURIComponent(`Olá${nome ? ' ' + nome.split(' ')[0] : ''}, aqui é o time da Squad.com! Vimos que você passou pela nossa ligação com o Waz e queríamos saber se ficou alguma dúvida. Podemos te ajudar?`);
 const waLink = (num, nome) => num ? `<a class="wa" target="_blank" rel="noopener" href="https://wa.me/${String(num).replace(/\D/g, '').replace(/^(?!55)/, '55')}?text=${waMsg(nome)}">${esc(num)}</a>` : '';
 const fmt = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+const tempTag = (c) => c === 'quente' ? '<span class="tag hot">🔥 Quente</span>' : c === 'morno' ? '<span class="tag warm">Morno</span>' : c === 'sem_fit' ? '<span class="tag">Sem fit</span>' : c ? `<span class="tag">${esc(c)}</span>` : '<span class="tag">—</span>';
+const qualTag = (q, motivo) => `<span class="tag ${q === true ? 'q' : q === false ? 'no' : ''}" title="${esc(motivo || '')}">${q === true ? 'Sim' : q === false ? 'Não' : '—'}</span>`;
+const pathTag = (c) => c === 'calendario' ? '<span class="tag w">📅 Agendou</span>' : c === 'whatsapp' ? '<span class="tag q">💬 WhatsApp</span>' : c ? `<span class="tag">${esc(c)}</span>` : '—';
+const trafTag = (t) => {
+  if (!t) return '—';
+  const s = String(t), t0 = s.trim().toLowerCase();
+  const tag = /pensando|avalia|talvez|quer come/.test(t0) ? '<span class="tag warm">Avaliando</span>'
+    : /^(n[ãa]o|ainda n|nunca|sem )/.test(t0) ? '<span class="tag">Não</span>'
+    : /sim|invest|impulsion|anunci|tr[áa]fego/.test(t0) ? '<span class="tag q">Sim</span>'
+    : `<span class="tag">${esc(s.split(/\s+/)[0])}</span>`;
+  const det = s.replace(/^(sim|n[ãa]o)[,.]?\s*/i, '').trim();
+  return tag + (det && !/^(sim|n[ãa]o)$/i.test(det) ? `<span class="sub ell" title="${esc(s)}">${esc(det)}</span>` : '');
+};
 
 function renderLogin(msg) {
   app.innerHTML = `<div class="login"><h2 style="margin:0 0 6px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:20px">Acesso restrito</h2>
@@ -81,8 +100,8 @@ async function renderPanel(user) {
       <button id="atualizar">Atualizar</button><button id="csv">Exportar CSV</button></div>
     <div class="cards" id="cards"></div>
     <h2>Funil</h2><div class="funil" id="funil"></div>
-    <h2>Leads</h2><div class="wrap"><table id="leads"><thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th><th>E-mail</th><th>WhatsApp</th><th>Segmento</th><th>Conversas/dia</th><th>Tráfego pago</th><th>Qualif.</th><th>Local</th><th>Caminho</th><th>Origem</th><th></th></tr></thead><tbody></tbody></table></div>
-    <h2>Sessões recentes (inclusive abandonos)</h2><div class="wrap"><table id="sessoes"><thead><tr><th>Quando</th><th>Etapa alcançada</th><th>Empresa / segmento</th><th>Conversas/dia</th><th>Tráfego</th><th>Qualif.</th><th>Nome</th><th>E-mail</th><th>WhatsApp</th><th>Local</th><th>Campanha · anúncio</th><th>Origem</th><th>Duração</th><th></th></tr></thead><tbody></tbody></table></div>`;
+    <h2>Leads</h2><div class="wrap"><table id="leads"><thead><tr><th>Quando</th><th>Lead</th><th>Temperatura</th><th>Qualificado</th><th>Caminho</th><th>Contato</th><th>Segmento</th><th>Volume</th><th>Tráfego pago</th><th>Origem</th><th></th></tr></thead><tbody></tbody></table></div>
+    <h2>Sessões recentes (inclusive abandonos)</h2><div class="wrap"><table id="sessoes"><thead><tr><th>Quando</th><th>Etapa alcançada</th><th>Lead</th><th>Contato</th><th>Volume</th><th>Tráfego</th><th>Qualif.</th><th>Origem</th><th>Duração</th><th></th></tr></thead><tbody></tbody></table></div>`;
   const $ = (id) => document.getElementById(id);
   async function load() {
     const dias = Number($('periodo').value), de = new Date(Date.now() - dias * 864e5).toISOString(), camp = $('campanha').value || null;
@@ -102,9 +121,30 @@ async function renderPanel(user) {
     $('funil').innerHTML = (funil || []).map((f) => `<div class="row"><span>${esc(f.etapa)}</span><div class="bar"><i style="width:${Math.round(100 * f.total / top)}%"></i></div><span class="n">${f.total}</span><span class="pct">${Math.round(100 * f.total / top)}%</span></div>`).join('');
     const q = $('busca').value.toLowerCase();
     const qf = $('qual').value; const LL = L.filter((l) => (!q || [l.nome, l.email, l.empresa, l.whatsapp, l.segmento].join(' ').toLowerCase().includes(q)) && (qf === '' || (qf === '1' ? l.qualificado === true : l.qualificado !== true)));
-    $('leads').querySelector('tbody').innerHTML = LL.map((l, i) => `<tr><td>${fmt(l.criado_em)}</td><td><b>${esc(l.nome)}</b><br><span class="tag ${l.classificacao === 'quente' ? 'q' : ''}">${esc(l.classificacao || '')}</span></td><td>${esc(l.empresa)}</td><td class="nw">${esc(l.email)}</td><td class="nw">${waLink(l.whatsapp, l.nome)}</td><td>${esc(l.segmento || l.tipo_negocio)}</td><td>${esc(l.conversas_dia)}</td><td>${esc(l.trafego_pago || '')}</td><td><span class="tag ${l.qualificado ? 'q' : ''}" title="${esc(l.motivo_qualificacao || '')}">${l.qualificado === true ? 'Sim' : l.qualificado === false ? 'Não' : '—'}</span></td><td>${esc(l.estado || '')}<br><span class="muted">${esc(l.cidade || '')}</span></td><td><span class="tag w">${esc(l.caminho || '')}</span></td><td class="muted">${esc(l.attr?.utm_source || '')}<br>${esc(l.attr?.utm_campaign || '')}<br>${esc(l.attr?.utm_content || '')}</td><td><button data-i="${i}">Ver</button></td></tr>`).join('') || '<tr><td colspan="13" class="muted">Nenhum lead no período.</td></tr>';
+    $('leads').querySelector('tbody').innerHTML = LL.map((l, i) => `<tr>
+      <td class="nw">${fmt(l.criado_em)}<span class="sub">${esc([l.cidade, l.estado].filter(Boolean).join(' · '))}</span></td>
+      <td><b>${esc(l.nome || '—')}</b><span class="sub ell" title="${esc(l.empresa || '')}">${esc(l.empresa || '')}</span></td>
+      <td>${tempTag(l.classificacao)}</td>
+      <td>${qualTag(l.qualificado, l.motivo_qualificacao)}</td>
+      <td>${pathTag(l.caminho)}</td>
+      <td class="nw">${waLink(l.whatsapp, l.nome)}<span class="sub"><a class="mail" href="mailto:${esc(l.email || '')}">${esc(l.email || '')}</a></span></td>
+      <td><span class="ell" title="${esc(l.segmento || l.tipo_negocio || '')}">${esc(l.segmento || l.tipo_negocio || '—')}</span></td>
+      <td><span class="ell s" title="${esc(l.conversas_dia || '')}">${esc(l.conversas_dia || '—')}</span></td>
+      <td>${trafTag(l.trafego_pago)}</td>
+      <td><span class="ell s" title="${esc([l.attr?.utm_source, l.attr?.utm_campaign, l.attr?.utm_content].filter(Boolean).join(' · '))}">${esc(l.attr?.utm_source || '—')}</span><span class="sub ell s">${esc(l.attr?.utm_campaign || '')}</span></td>
+      <td><button data-i="${i}">Ver</button></td></tr>`).join('') || '<tr><td colspan="11" class="muted">Nenhum lead no período.</td></tr>';
     $('leads').querySelectorAll('button[data-i]').forEach((b) => b.onclick = () => showLead(LL[b.dataset.i]));
-    $('sessoes').querySelector('tbody').innerHTML = S.slice(0, 100).map((s, i) => `<tr><td>${fmt(s.criado_em)}<br><span class="muted">${esc(s.hora_local || '')}</span></td><td><span class="tag">${s.etapa_ordem} · ${esc(s.etapa)}</span></td><td>${esc(s.empresa || '')}<br><span class="muted">${esc(s.segmento || s.tipo_negocio || '')}</span></td><td>${esc(s.conversas_dia)}</td><td>${esc(s.trafego_pago || '')}</td><td><span class="tag ${s.qualificado ? 'q' : ''}" title="${esc(s.motivo_qualificacao || '')}">${s.qualificado === true ? 'Sim' : s.qualificado === false ? 'Não' : '—'}</span></td><td>${esc(s.nome)}</td><td class="nw">${esc(s.email || '')}</td><td class="nw">${waLink(s.whatsapp, s.nome)}</td><td>${esc(s.estado || '')}<br><span class="muted">${esc(s.cidade || '')}</span></td><td>${esc(s.utm_campaign)}<br><span class="muted">${esc(s.utm_content)}</span></td><td>${esc(s.utm_source)} <span class="muted">${esc(s.device)}</span></td><td>${s.duracao_seg ? Math.round(s.duracao_seg / 60) + ' min' : ''}</td><td>${s.transcricao ? `<button data-s="${i}">Ver</button>` : ''}</td></tr>`).join('');
+    $('sessoes').querySelector('tbody').innerHTML = S.slice(0, 100).map((s, i) => `<tr>
+      <td class="nw">${fmt(s.criado_em)}<span class="sub">${esc([s.cidade, s.estado].filter(Boolean).join(' · '))}</span></td>
+      <td><span class="tag" title="${esc(s.hora_local || '')}">${s.etapa_ordem} · ${esc(s.etapa)}</span></td>
+      <td><b>${esc(s.nome || '—')}</b><span class="sub ell" title="${esc([s.empresa, s.segmento || s.tipo_negocio].filter(Boolean).join(' · '))}">${esc([s.empresa, s.segmento || s.tipo_negocio].filter(Boolean).join(' · '))}</span></td>
+      <td class="nw">${waLink(s.whatsapp, s.nome)}<span class="sub"><a class="mail" href="mailto:${esc(s.email || '')}">${esc(s.email || '')}</a></span></td>
+      <td><span class="ell s" title="${esc(s.conversas_dia || '')}">${esc(s.conversas_dia || '—')}</span></td>
+      <td>${trafTag(s.trafego_pago)}</td>
+      <td>${qualTag(s.qualificado, s.motivo_qualificacao)}</td>
+      <td><span class="ell s" title="${esc([s.utm_source, s.utm_campaign, s.utm_content, s.device].filter(Boolean).join(' · '))}">${esc(s.utm_source || '—')}</span><span class="sub ell s">${esc(s.utm_campaign || '')}</span></td>
+      <td class="nw">${s.duracao_seg ? Math.round(s.duracao_seg / 60) + ' min' : ''}</td>
+      <td>${s.transcricao ? `<button data-s="${i}">Ver</button>` : ''}</td></tr>`).join('');
     $('sessoes').querySelectorAll('button[data-s]').forEach((b) => b.onclick = () => showLead(Object.assign({}, S[b.dataset.s], { dor_principal: S[b.dataset.s].dor, classificacao: S[b.dataset.s].etapa, resumo: S[b.dataset.s].operacao || '' })));
     window.__leads = LL;
   }
