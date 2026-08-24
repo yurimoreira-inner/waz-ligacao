@@ -520,18 +520,30 @@
       };
       ws.onerror = function () { setCaption('Falha na conexão. Tente de novo em instantes.', true); };
       setupCfg = cfg;
-      ws.onclose = function (e) { if (!active || ws !== mine) return; if (resumeHandle && !reconnecting) reconnect(); else end(true); };
+      ws.onclose = function (e) { if (!active || ws !== mine) return; scheduleReconnect(); };
       startedAt = Date.now();
       // O microfone só é pedido quando o Waz termina a abertura (momento em que a pessoa quer responder).
     } catch (e) { setCaption('Não consegui conectar agora. Tente de novo em instantes.', true); }
   }
 
-  async function reconnect() {
-    reconnecting = true; stopPlayback(); setLive(false, 'Reconectando…');
+  // Reconexão resiliente: várias tentativas com espera crescente; com handle retoma a sessão,
+  // sem handle abre sessão nova e recoloca o modelo no contexto pela transcrição.
+  var reconAttempt = 0, reconNeedsContext = false;
+  function scheduleReconnect() {
+    if (!active || reconnecting) return;
+    reconnecting = true; reconAttempt = 0;
+    stopPlayback(); setLive(false, 'Reconectando…');
+    attemptReconnect();
+  }
+  async function attemptReconnect() {
+    if (!active) return;
+    reconAttempt++;
+    if (reconAttempt > 4) { reconnecting = false; end(true); return; }
     try {
       var res = await fetch(ENDPOINT + '/token?v=2', { method: 'POST' });
       var cfg = await res.json(); if (!res.ok || cfg.error) throw new Error('token');
-      cfg.setup.setup.sessionResumption = { handle: resumeHandle };
+      if (resumeHandle) { cfg.setup.setup.sessionResumption = { handle: resumeHandle }; reconNeedsContext = false; }
+      else reconNeedsContext = true;
       var nws = new WebSocket(cfg.wsUrl), mine = nws, chain = Promise.resolve();
       ws = nws;
       nws.onopen = function () { mine.send(JSON.stringify(cfg.setup)); };
@@ -539,13 +551,23 @@
         chain = chain.then(function () { return ev.data instanceof Blob ? ev.data.text() : ev.data; })
           .then(function (txt) { if (ws === mine) handle(JSON.parse(txt)); }).catch(function () {});
       };
-      nws.onclose = function () { if (!active || ws !== mine) return; end(true); };
+      nws.onclose = function () { if (!active || ws !== mine) return; if (reconnecting) setTimeout(attemptReconnect, 1000 * reconAttempt); else scheduleReconnect(); };
       nws.onerror = function () {};
-    } catch (e) { end(true); }
+    } catch (e) { setTimeout(attemptReconnect, 1000 * reconAttempt); }
+  }
+  function reconnect() { scheduleReconnect(); }
+  function resumeContextMsg() {
+    if (!transcript.length) return 'O visitante acabou de clicar em Começar. Faça sua abertura.';
+    var ult = transcript.slice(-10).map(function (t) { return (t.role === 'waz' ? 'Você' : 'Cliente') + ': ' + t.text; }).join('\n');
+    return 'A conexão caiu por um instante e acabou de voltar (não comente isso). Este é o fim da conversa até agora:\n' + ult + '\nContinue naturalmente de onde parou, sem recomeçar e sem se reapresentar.';
   }
   function handle(msg) {
     if (msg.sessionResumptionUpdate) { if (msg.sessionResumptionUpdate.resumable && msg.sessionResumptionUpdate.newHandle) resumeHandle = msg.sessionResumptionUpdate.newHandle; return; }
-    if (msg.setupComplete && reconnecting) { reconnecting = false; connected = true; setLive(true, 'Ao vivo · microfone ligado'); return; }
+    if (msg.setupComplete && reconnecting) {
+      reconnecting = false; reconAttempt = 0; connected = true; setLive(true, 'Ao vivo · microfone ligado');
+      if (reconNeedsContext) { reconNeedsContext = false; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: resumeContextMsg() }] }], turnComplete: true } })); }
+      return;
+    }
     if (msg.setupComplete) {
       connected = true; setLive(true, 'Ao vivo · microfone ligado'); track('conectado', { mic: liveMode });
       setCaption('', true);
@@ -555,7 +577,7 @@
     var sc = msg.serverContent;
     if (sc) {
       if (sc.interrupted) { var keepQ = visQueue.slice(); stopPlayback(); visQueue = keepQ; visQueue.forEach(function (q) { q.at = null; }); visTurnTotal = visQueue.length; resetCaption(); return; } // interrupção não descarta os slides pendentes: eles entram na próxima fala
-      if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; userAnswered = true; spokeSinceOptions = true; }
+      if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; userAnswered = true; spokeSinceOptions = true; waitingReply = Date.now(); } // fala por voz também arma o vigia de resposta
       if (sc.outputTranscription && sc.outputTranscription.text) {
         if (curIn) { push('cliente', curIn); curIn = ''; }
         curOut += fixName(sc.outputTranscription.text); feedCaption(sc.outputTranscription.text);
@@ -579,7 +601,7 @@
         ws.send(JSON.stringify({ toolResponse: { functionResponses: [{ id: fc.id, name: fc.name, response: { result: 'ok' } }] } }));
       });
     }
-    if (msg.goAway && resumeHandle && !reconnecting) { try { ws.onclose = null; ws.close(); } catch (e) {} reconnect(); }
+    if (msg.goAway && !reconnecting) { try { ws.onclose = null; ws.close(); } catch (e) {} scheduleReconnect(); }
   }
   async function askMicAfterOpening() {
     // espera o áudio da abertura terminar de tocar, aí pede o microfone
@@ -632,7 +654,7 @@
   function end(fromServer) {
     endCompactOff();
     if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript });
-    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; if (nudgeTimer) clearTimeout(nudgeTimer);
+    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; reconnecting = false; reconAttempt = 0; reconNeedsContext = false; resumeHandle = null; waitingReply = 0; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
@@ -653,7 +675,7 @@
       var fora = Date.now() - hiddenAt;
       if (ws && ws.readyState === 1 && hiddenAt && fora > 4000) {
         ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante saiu da tela por um momento e acabou de voltar. Dê boas-vindas de volta em uma frase curta e simpática ("opa, você voltou!") e retome exatamente de onde a conversa parou.' }] }], turnComplete: true } }));
-      } else if ((!ws || ws.readyState > 1) && resumeHandle && !reconnecting) { reconnect(); }
+      } else if ((!ws || ws.readyState > 1) && !reconnecting) { scheduleReconnect(); }
       hiddenAt = 0;
     }
   });
