@@ -57,7 +57,7 @@
   var FICONS = { qualificacao: '🎯', agendamento: '📅', propostas: '📄', pix: '💸', followup: '🔁', reativacao: '♻️' };
   var FKEYS = ['qualificacao', 'agendamento', 'propostas', 'pix', 'followup', 'reativacao'];
   function funcaoSlide(i) {
-    return '<div class="big"><div class="big-ic">' + FICONS[FKEYS[i]] + '</div><div class="vtitle">Função ' + (i + 1) + ' de 6</div><h3>' + F[i][0] + '</h3><p>' + F[i][1] + '</p></div>';
+    return '<div class="big"><div class="big-ic">' + FICONS[FKEYS[i]] + '</div><h3>' + F[i][0] + '</h3><p>' + F[i][1] + '</p></div>';
   }
   var CRM_ITENS = [['crm_funil', 'Funil visual em tempo real', 'Você abre o painel e sabe exatamente quem está pronto para fechar.'], ['crm_automatico', 'Leads movidos de fase automaticamente', 'Conforme a conversa avança, o lead muda de etapa sozinho.'], ['crm_historico', 'Histórico completo de cada conversa', 'Tudo que foi dito fica registrado, organizado por cliente.']];
   function crmSlide(k) {
@@ -134,14 +134,17 @@
     return '<div class="cal-wrap"><div class="vtitle" style="padding:14px 16px 0">Escolha o melhor horário</div><div id="cal-inline" class="cal-inline"></div>' +
       '<a class="cal-fallback" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Abrir o calendário em outra aba</a></div>';
   };
+  var calMounts = 0;
   function mountCal() {
     var el = document.getElementById('cal-inline'); if (!el) return;
     (function (C, A, L) { var p = function (a, ar) { a.q.push(ar); }; var d = C.document; C.Cal = C.Cal || function () { var cal = C.Cal, ar = arguments; if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement('script')).src = A; cal.loaded = true; } if (ar[0] === L) { var api = function () { p(api, arguments); }, namespace = ar[1]; api.q = api.q || []; if (typeof namespace === 'string') { cal.ns[namespace] = cal.ns[namespace] || api; p(cal.ns[namespace], ar); p(cal, ['initNamespace', namespace]); } else p(cal, ar); return; } p(cal, ar); }; })(window, 'https://app.cal.com/embed/embed.js', 'init');
-    window.Cal('init', 'waz', { origin: 'https://app.cal.com' });
-    window.Cal.ns.waz('inline', { elementOrSelector: '#cal-inline', calLink: 'squad-vendas/demo', layout: 'month_view',
+    // namespace novo a cada montagem: garante que o embed nasce com os dados JÁ confirmados do lead
+    var ns = 'waz' + (++calMounts);
+    window.Cal('init', ns, { origin: 'https://app.cal.com' });
+    window.Cal.ns[ns]('inline', { elementOrSelector: '#cal-inline', calLink: 'squad-vendas/demo', layout: 'month_view',
       config: { name: leadData.nome || '', email: leadData.email || '', attendeePhoneNumber: leadData.whatsapp ? '+55' + leadData.whatsapp.replace(/\D/g, '') : '', notes: 'Lead da apresentação do Waz' + (leadData.empresa ? ' · ' + leadData.empresa : ''), theme: 'light' } });
-    window.Cal.ns.waz('ui', { hideEventTypeDetails: true, layout: 'month_view', cssVarsPerTheme: { light: { 'cal-brand': '#16a34a' } } });
-    window.Cal.ns.waz('on', { action: 'bookingSuccessful', callback: function () { track('calendar_booked'); sendText('Acabei de agendar pelo calendário.', 'Agendado'); } });
+    window.Cal.ns[ns]('ui', { hideEventTypeDetails: true, layout: 'month_view', cssVarsPerTheme: { light: { 'cal-brand': '#16a34a' } } });
+    window.Cal.ns[ns]('on', { action: 'bookingSuccessful', callback: function () { track('calendar_booked'); sendText('Acabei de agendar pelo calendário.', 'Agendado'); } });
     track('calendar_shown');
   }
   VIS.whatsapp = function () {
@@ -239,9 +242,11 @@
   VIS.comparativo_waz = cmpSlide(true);
 
   // Vários slides na mesma fala: em vez de pular todos, distribui ao longo das palavras daquela fala.
-  var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false;
+  var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false, lastVisAt = 0;
   var VIS_IMEDIATOS = { nenhum: 1, agendar: 1, whatsapp: 1, instagram: 1 };
   function queueVisual(id) {
+    // a trava do Pitch conta a CHAMADA da ferramenta (a exibição pode atrasar alguns segundos)
+    if (id && id !== 'nenhum' && !VIS_IMEDIATOS[id]) shownSlides[id] = true;
     if (VIS_IMEDIATOS[id]) { visQueue = []; showVisualNow(id); return; }
     // âncora: a posição da fala em que o modelo chamou este slide (sincronia real);
     // chamadas feitas antes da fala começar ficam sem âncora e entram por distribuição
@@ -254,7 +259,9 @@
     var head = visQueue[0];
     var total = turnWords.length || 1;
     var target = head.at != null ? head.at : Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
-    if (shownWords >= target) { showVisualNow(visQueue.shift().id); visShownInTurn++; }
+    // respiro mínimo entre slides da mesma fala: nada de despejar vários de uma vez
+    if (lastVisAt) target = Math.max(target, lastVisAt + 10);
+    if (shownWords >= target) { lastVisAt = shownWords; showVisualNow(visQueue.shift().id); visShownInTurn++; }
   }
   var VIS_ALIAS = { funcoes: 'funcao_qualificacao', funcao: 'funcao_qualificacao', crm: 'crm_funil', comparativo: 'comparativo_waz', demo: 'demo_pergunta', demonstracao: 'demo_pergunta', pilares: 'pilar_velocidade', preco_waz: 'preco', precos: 'preco', valor: 'preco', garantia: 'preco', resultado: 'resultados', casos: 'resultados', cases: 'resultados', depoimento: 'depoimentos', autoridade: 'quem_esta_por_tras', squad: 'quem_esta_por_tras', calendario: 'agendar', insight: 'insight_5min' };
   function normalizeVisId(id) {
@@ -278,7 +285,7 @@
     if ((id === 'agendar' || id === 'whatsapp') && !pitchFeito()) {
       if (ws && ws.readyState === 1 && Date.now() - gateNudgeAt > 20000) {
         gateNudgeAt = Date.now();
-        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'TRAVA DO SISTEMA (não leia isto em voz alta): o Pitch ainda não aconteceu. Antes de agendar ou mandar pro WhatsApp, faça AGORA o Pitch (versão compacta se preciso): as seis funcionalidades com os slides funcao_, a credibilidade, o preço com comparativo_sdr, comparativo_waz e preco, e a garantia. Depois retome o fechamento.' }] }], turnComplete: true } }));
+        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'TRAVA DO SISTEMA (não leia isto em voz alta): o Pitch ainda não aconteceu. Antes de agendar ou mandar pro WhatsApp, faça AGORA o Pitch compacto — apresentando APENAS o que ainda não apresentou nesta conversa (funcionalidades com os slides funcao_, credibilidade, preço com comparativo_sdr, comparativo_waz e preco, garantia). Não repita nada que o lead já ouviu. Depois retome o fechamento.' }] }], turnComplete: true } }));
         track('trava_pitch', {});
       }
       return;
@@ -379,7 +386,7 @@
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
       playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
-      turnLive = true; visShownInTurn = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; }); // nova fala: âncoras antigas não valem mais
+      turnLive = true; visShownInTurn = 0; lastVisAt = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; }); // nova fala: âncoras antigas não valem mais
       if (spokeSinceOptions) { // a pessoa respondeu por voz: limpa perguntas antigas — MAS nunca o cartão de confirmação
         if (!options.classList.contains('hidden') && !confirmMode) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
         spokeSinceOptions = false;
@@ -416,14 +423,14 @@
     var sum = 0; for (var i = 0; i < anBuf.length; i++) { var v = (anBuf[i] - 128) / 128; sum += v * v; }
     return Math.sqrt(sum / anBuf.length);
   }
-  function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; visQueue = []; visShownInTurn = 0; visTurnTotal = 0; turnLive = false; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
+  function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; visQueue = []; visShownInTurn = 0; visTurnTotal = 0; turnLive = false; lastVisAt = 0; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
   // ---------- rosto fixo; só as ondas indicam a fala ----------
   var wasSpeaking = false;
   (function tick(now) {
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
-    if (sp !== wasSpeaking) { wasSpeaking = sp; if (!sp) { turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift().id); } }
+    if (sp !== wasSpeaking) { wasSpeaking = sp; if (!sp && visQueue.length) { turnLive = false; visShownInTurn = 0; var lastQ = visQueue[visQueue.length - 1].id; visQueue = []; showVisualNow(lastQ); } else if (!sp) { turnLive = false; visShownInTurn = 0; } }
     updateMicChip(now || performance.now());
     if (waitingReply && Date.now() - waitingReply > 14000 && ws && ws.readyState === 1) { waitingReply = 0; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
     renderCaption(); requestAnimationFrame(tick);
@@ -547,7 +554,7 @@
     }
     var sc = msg.serverContent;
     if (sc) {
-      if (sc.interrupted) { stopPlayback(); resetCaption(); return; }
+      if (sc.interrupted) { var keepQ = visQueue.slice(); stopPlayback(); visQueue = keepQ; visQueue.forEach(function (q) { q.at = null; }); visTurnTotal = visQueue.length; resetCaption(); return; } // interrupção não descarta os slides pendentes: eles entram na próxima fala
       if (sc.inputTranscription && sc.inputTranscription.text) { curIn += sc.inputTranscription.text; userAnswered = true; spokeSinceOptions = true; }
       if (sc.outputTranscription && sc.outputTranscription.text) {
         if (curIn) { push('cliente', curIn); curIn = ''; }
