@@ -433,7 +433,7 @@
   // Legenda sincronizada com o áudio, exibida por FRASE (quebra só em pontuação).
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
-  function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
+  function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); t = t.replace(/\b(mostrar_visual|registrar_contexto|registrar_lead|confirmar_dados)\s*\(?[^)\s]*\)?;?/g, ' '); t = t.replace(/\b(funcao|comparativo|insight|pilar|demo|crm)_[a-z_]+\b/g, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[oóôáa][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
   var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.25; // atraso pequeno: o texto costuma chegar antes do som
   function feedCaption(chunk) {
     if (!outCtx) return;
