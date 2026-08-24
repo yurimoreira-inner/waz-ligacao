@@ -100,6 +100,7 @@
     ]),
   };
   var slot = $('slot'), pendingVisual = null, confirmMode = false;
+  var shownSlides = {}, gateNudgeAt = 0;
   // Encaixa o conteúdo do palco no espaço disponível (sem rolagem): reduz a escala se precisar.
   function fitSlot(el) {
     el.style.transform = ''; el.style.marginBottom = '';
@@ -267,7 +268,21 @@
     return id;
   }
   function showVisual(id) { queueVisual(normalizeVisId(id)); }
+  function pitchFeito() {
+    var funcoes = 0; ['funcao_qualificacao', 'funcao_agendamento', 'funcao_propostas', 'funcao_pix', 'funcao_followup', 'funcao_reativacao'].forEach(function (k) { if (shownSlides[k]) funcoes++; });
+    return shownSlides.preco && funcoes >= 4;
+  }
   function showVisualNow(id) {
+    if (id) shownSlides[id] = true;
+    // TRAVA MECÂNICA: calendário/WhatsApp só depois do Pitch (preço + funcionalidades mostrados)
+    if ((id === 'agendar' || id === 'whatsapp') && !pitchFeito()) {
+      if (ws && ws.readyState === 1 && Date.now() - gateNudgeAt > 20000) {
+        gateNudgeAt = Date.now();
+        ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'TRAVA DO SISTEMA (não leia isto em voz alta): o Pitch ainda não aconteceu. Antes de agendar ou mandar pro WhatsApp, faça AGORA o Pitch (versão compacta se preciso): as seis funcionalidades com os slides funcao_, a credibilidade, o preço com comparativo_sdr, comparativo_waz e preco, e a garantia. Depois retome o fechamento.' }] }], turnComplete: true } }));
+        track('trava_pitch', {});
+      }
+      return;
+    }
     if (id && id.indexOf('demo_') === 0) { if (!confirmMode) hideOptions(); pendingVisual = null; showDemo(id); return; }
     demoStage = -1;
     if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); stage.classList.remove('compact'); pendingVisual = null; return; }
@@ -610,7 +625,7 @@
   function end(fromServer) {
     endCompactOff();
     if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript });
-    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; if (nudgeTimer) clearTimeout(nudgeTimer);
+    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
