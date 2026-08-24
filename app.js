@@ -64,7 +64,7 @@
     var it = CRM_ITENS.find(function (c) { return c[0] === k; });
     return '<img class="full crm-img" src="crm.png" alt="CRM do Waz" /><div class="vpad"><div class="vtitle">CRM 100% guiado por IA</div><h3 class="h3">' + it[1] + '</h3><p class="p">' + it[2] + '</p></div>';
   }
-  var CMP = [['Custo mensal', 'R$ 3.500+ com encargos', 'Menos que um SDR'], ['Horário', 'Máximo 8h por dia', '24h por dia'], ['Dias', 'Segunda a sexta', 'Domingo a domingo'], ['Resposta', 'Minutos a horas', 'Segundos'], ['Férias / turnover', 'Sim, treino do zero', 'Nunca. Treinou uma vez, fica'], ['Conversas ao mesmo tempo', '1 por vez', 'Todas']];
+  var CMP = [['Custo mensal', 'R$ 3.200–3.800 com encargos', 'Menos que meio SDR'], ['Horário', 'Máximo 8h por dia', '24h por dia'], ['Dias', 'Segunda a sexta', 'Domingo a domingo'], ['Resposta', 'Minutos a horas', 'Segundos'], ['Férias / turnover', 'Sim, treino do zero', 'Nunca. Treinou uma vez, fica'], ['Conversas ao mesmo tempo', '1 por vez', 'Todas']];
   function cmpSlide(withWaz) {
     var h = '<div class="vpad"><div class="vtitle">' + (withWaz ? 'SDR júnior × Waz' : 'Quanto custa um SDR júnior?') + '</div><table class="cmp' + (withWaz ? ' two' : '') + '"><tr><th></th><th>SDR júnior</th>' + (withWaz ? '<th class="w">Waz</th>' : '') + '</tr>';
     CMP.forEach(function (r, i) { h += '<tr style="animation-delay:' + (i * 90) + 'ms"><td>' + r[0] + '</td><td>' + r[1] + '</td>' + (withWaz ? '<td class="w">' + r[2] + '</td>' : '') + '</tr>'; });
@@ -91,7 +91,7 @@
       '<div class="guar">Garantia de resultado · reembolso de 100%, sem burocracia</div></div>',
     quem_esta_por_tras: '<img class="full" src="inner-ai.png" alt="Time Inner AI" /><div class="vpad"><div class="vtitle">Squad.com · grupo Inner AI</div>' +
       '<div class="stats"><div><b>+3 anos</b><span>em inteligência artificial</span></div><div><b>+1M</b><span>usuários atendidos</span></div><div><b>#1</b><span>plataforma de IA do Brasil</span></div></div>' +
-      '<p class="clients"><span>ATENDEMOS</span> Mercado Livre · Movida · Embraer · Brigadayros · Brasil Grãos</p>' +
+      '<p class="clients"><span>ATENDEMOS</span> Vivo · Mercado Livre · Embraer · FAAP · Movida · Brigadayros · Brasil Grãos</p>' +
       '<div class="media"><span>NA MÍDIA</span><img src="midia-1.svg" alt=""><img src="midia-2.svg" alt=""><img src="midia-3.svg" alt=""><img src="midia-4.svg" alt=""></div>' +
       '<p style="font-size:12px;color:#5c6664;margin:10px 0 0">R$ 50M captados · SOC II · Criptografia de nível bancário · Seus dados nunca treinam modelos.</p></div>',
     depoimentos: carousel('O que dizem nossos clientes', [
@@ -242,15 +242,18 @@
   var VIS_IMEDIATOS = { nenhum: 1, agendar: 1, whatsapp: 1, instagram: 1 };
   function queueVisual(id) {
     if (VIS_IMEDIATOS[id]) { visQueue = []; showVisualNow(id); return; }
-    visQueue.push(id);
+    // âncora: a posição da fala em que o modelo chamou este slide (sincronia real);
+    // chamadas feitas antes da fala começar ficam sem âncora e entram por distribuição
+    var at = (turnLive && turnWords.length > 0) ? turnWords.length + 2 : null;
+    visQueue.push({ id: id, at: at });
     visTurnTotal = visShownInTurn + visQueue.length;
   }
   function pumpVisualQueue(shownWords) {
     if (!visQueue.length) return;
+    var head = visQueue[0];
     var total = turnWords.length || 1;
-    // o 1º slide da fala só entra depois de ~4 palavras (a pessoa ouve o assunto primeiro)
-    var nextAt = Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
-    if (shownWords >= nextAt) { showVisualNow(visQueue.shift()); visShownInTurn++; }
+    var target = head.at != null ? head.at : Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
+    if (shownWords >= target) { showVisualNow(visQueue.shift().id); visShownInTurn++; }
   }
   var VIS_ALIAS = { funcoes: 'funcao_qualificacao', funcao: 'funcao_qualificacao', crm: 'crm_funil', comparativo: 'comparativo_waz', demo: 'demo_pergunta', demonstracao: 'demo_pergunta', pilares: 'pilar_velocidade', preco_waz: 'preco', precos: 'preco', valor: 'preco', garantia: 'preco', resultado: 'resultados', casos: 'resultados', cases: 'resultados', depoimento: 'depoimentos', autoridade: 'quem_esta_por_tras', squad: 'quem_esta_por_tras', calendario: 'agendar', insight: 'insight_5min' };
   function normalizeVisId(id) {
@@ -361,7 +364,7 @@
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
       playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
-      turnLive = true; visShownInTurn = 0; visTurnTotal = visQueue.length; // slides desta fala entram ao longo das palavras (o 1º após ~4)
+      turnLive = true; visShownInTurn = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; }); // nova fala: âncoras antigas não valem mais
       if (spokeSinceOptions) { // a pessoa respondeu por voz: limpa perguntas antigas — MAS nunca o cartão de confirmação
         if (!options.classList.contains('hidden') && !confirmMode) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
         spokeSinceOptions = false;
@@ -405,7 +408,7 @@
   (function tick(now) {
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
-    if (sp !== wasSpeaking) { wasSpeaking = sp; if (!sp) { turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift()); } }
+    if (sp !== wasSpeaking) { wasSpeaking = sp; if (!sp) { turnLive = false; visShownInTurn = 0; while (visQueue.length) showVisualNow(visQueue.shift().id); } }
     updateMicChip(now || performance.now());
     if (waitingReply && Date.now() - waitingReply > 14000 && ws && ws.readyState === 1) { waitingReply = 0; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
     renderCaption(); requestAnimationFrame(tick);
