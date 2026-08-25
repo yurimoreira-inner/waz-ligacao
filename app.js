@@ -446,7 +446,7 @@
     var src = outCtx.createBufferSource(); src.buffer = buf; src.playbackRate.value = VOICE_RATE; src.connect(analyser || outCtx.destination);
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
-      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0;
+      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0; parenDepth = 0;
       turnLive = true; visShownInTurn = 0; lastVisAt = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; q.kw = null; q.scanned = 0; }); // nova fala: âncoras e gatilhos antigos não valem mais
       if (spokeSinceOptions) { // a pessoa respondeu por voz: limpa perguntas antigas — MAS nunca o cartão de confirmação
         if (!options.classList.contains('hidden') && !confirmMode) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
@@ -517,11 +517,16 @@
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
   function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); t = t.replace(/\b(mostrar_visual|registrar_contexto|registrar_lead|confirmar_dados)\s*\(?[^)\s]*\)?;?/g, ' '); t = t.replace(/\b[a-z]+_[a-z]+\s*\(\s*["']?[a-z_]*["']?\s*\)\s*;?/gi, ' '); t = t.replace(/\b(funcao|comparativo|insight|pilar|demo|crm)_[a-z_]+\b/g, ' '); t = t.replace(/[(\[](?:risad|riso|sorri|pausa|tom |suspir)[^)\]]*[)\]]/gi, ' '); t = t.replace(/<ctrl\d+>/gi, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos|voz|vez)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[óô][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
   var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.25; // atraso pequeno: o texto costuma chegar antes do som
+  var parenDepth = 0; // anotações do transcritor como "(risos)" chegam fatiadas no streaming: filtro com estado
   function feedCaption(chunk) {
     if (!outCtx) return;
     var words = fixName(chunk).split(/\s+/).filter(Boolean);
     if (!words.length) return;
-    words.forEach(function (w) { var o = { w: w, t: Infinity }; turnWords.push(o); capWords.push(o); });
+    words.forEach(function (w) {
+      if (/^[(\[]/.test(w)) parenDepth++;
+      if (parenDepth > 0) { if (/[)\]][.,!?]?$/.test(w)) parenDepth = Math.max(0, parenDepth - 1); return; } // direção interna: nunca vai pra legenda
+      var o = { w: w, t: Infinity }; turnWords.push(o); capWords.push(o);
+    });
     retimeCaption();
   }
   // Mapeamento proporcional: a i-ésima palavra do turno fica em início + (i / total) × duração de áudio já recebida.
@@ -557,7 +562,7 @@
     }
   }
   var capLine = [];
-  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; turnWords = []; }
+  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; turnWords = []; parenDepth = 0; }
   function setCaption(t, status) { resetCaption(); caption.textContent = t; caption.classList.toggle('status', !!status); }
   function setLive(on, label) { liveEl.classList.toggle('on', on); liveEl.querySelector('span').textContent = label; }
   var lvBars = liveEl.querySelectorAll('.lv b'), hearingUntil = 0;
