@@ -542,16 +542,23 @@
   }
   // Mapeamento proporcional: a i-ésima palavra do turno fica em início + (i / total) × duração de áudio já recebida.
   // Recalculado a cada pacote de texto ou áudio, então se corrige sozinho quando um dos dois chega antes.
+  // Cada palavra recebe um instante = início + (peso acumulado antes dela) × ritmo.
+  // O RITMO é preso a uma faixa de fala humana (não à duração de áudio bufferizada, que chega
+  // em rajada e no início inflava o espaçamento → legenda muito atrasada nas primeiras palavras).
   function retimeCaption() {
     if (!outCtx || !turnWords.length) return;
     var start = turnAudioStart || outCtx.currentTime;
     var dur = Math.max(0, playHead - start);
     var n = turnWords.length, weights = [], total = 0;
     for (var i = 0; i < n; i++) { var wgt = 2 + turnWords[i].w.replace(/[^\wÀ-ÿ]/g, '').length + (/[.!?,;:…]$/.test(turnWords[i].w) ? 3 : 0); weights.push(wgt); total += wgt; }
-    var rate = dur > 2 ? dur / total : 0.075; // segundos por "unidade de peso" (≈ letra)
-    var span = dur > 0 ? Math.max(dur, total * rate * 0.9) : total * rate;
+    // ritmo medido = áudio total ÷ peso total. Só é confiável quando texto e áudio cobrem a MESMA fala.
+    // Se o áudio bufferizado é bem maior do que o texto recebido cobriria em ritmo normal, estamos na
+    // RAJADA (áudio na frente do texto) → usa ritmo humano fixo, não o inflado. Senão, confia no medido.
+    var NORMAL = 0.06, measured = total > 0 ? dur / total : NORMAL;
+    var burst = total < 25 || dur > total * NORMAL * 1.4;
+    var rate = Math.max(0.04, Math.min(0.095, burst ? NORMAL : measured));
     var acc = 0;
-    for (var j = 0; j < n; j++) { turnWords[j].t = start + (acc / total) * span + CAP_LAG; acc += weights[j]; }
+    for (var j = 0; j < n; j++) { turnWords[j].t = start + acc * rate + CAP_LAG; acc += weights[j]; }
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
   var CAP_WORDS = 10, turnShownWords = 0;
