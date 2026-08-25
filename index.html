@@ -114,6 +114,10 @@
   .res.set { background: var(--green-soft); border-color: #c9ebd4; text-align: center; } .res.set span { color: var(--green-dark); font-weight: 600; }
   .crm-img { max-height: 34dvh; object-fit: cover; object-position: top; }
   .cal-wrap { display: flex; flex-direction: column; height: 100%; } .cal-inline { flex: 1; min-height: 0; overflow-y: auto; } .cal-inline > * { height: 100%; } .cal-fallback { display: block; text-align: center; font-size: 12px; color: var(--muted2); padding: 6px 0 8px; flex: 0 0 auto; }
+  .cal-fail-msg { display: none; }
+  .cal-wrap.cal-failed .cal-inline { flex: 0 0 auto; min-height: 0; }
+  .cal-wrap.cal-failed .cal-fail-msg { display: block; text-align: center; font-size: 14px; color: var(--ink); padding: 18px 16px 10px; font-weight: 600; }
+  .cal-wrap.cal-failed .cal-fallback { font-size: 16px; font-weight: 700; color: #fff; background: var(--green, #16a34a); border-radius: 12px; padding: 14px 20px; margin: 4px auto 16px; max-width: 320px; text-decoration: none; }
   /* modo compacto: quando o calendário está na tela, o topo encolhe pra dar espaço */
   #stage.compact .avatar-wrap { width: 56px; height: 56px; margin: 4px auto 4px; }
   #stage.compact .avatar { width: 56px; height: 56px; border-width: 2px; }
@@ -262,6 +266,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608251306" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608251408" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>

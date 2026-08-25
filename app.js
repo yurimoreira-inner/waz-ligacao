@@ -132,7 +132,8 @@
   }
   VIS.agendar = function () {
     return '<div class="cal-wrap"><div class="vtitle" style="padding:14px 16px 0">Escolha o melhor horário</div><div id="cal-inline" class="cal-inline"></div>' +
-      '<a class="cal-fallback" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Abrir o calendário em outra aba</a></div>';
+      '<div class="cal-fail-msg">O calendário demorou a carregar. Toque no botão abaixo pra escolher seu horário:</div>' +
+      '<a class="cal-fallback" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Abrir o calendário</a></div>';
   };
   var calMounts = 0;
   function mountCal() {
@@ -146,6 +147,16 @@
     window.Cal.ns[ns]('ui', { hideEventTypeDetails: true, layout: 'month_view', cssVarsPerTheme: { light: { 'cal-brand': '#16a34a' } } });
     window.Cal.ns[ns]('on', { action: 'bookingSuccessful', callback: function () { track('calendar_booked'); sendText('Acabei de agendar pelo calendário.', 'Agendado'); } });
     track('calendar_shown');
+    // rede de segurança: se o embed não renderizar o iframe (script bloqueado, rede lenta),
+    // destaca o link de fallback pra pessoa nunca ficar sem calendário.
+    var wrap = el.closest('.cal-wrap'); if (wrap) wrap.classList.remove('cal-failed');
+    var tries = 0;
+    (function check() {
+      if (!document.getElementById('cal-inline')) return; // saiu da tela
+      if (el.querySelector('iframe')) { if (wrap) wrap.classList.remove('cal-failed'); return; } // carregou ✓
+      if (++tries > 25) { if (wrap) wrap.classList.add('cal-failed'); track('calendar_fallback', {}); return; } // ~5s sem iframe
+      setTimeout(check, 200);
+    })();
   }
   VIS.whatsapp = function () {
     return '<div class="cta-card"><div class="vtitle">Continue comigo no WhatsApp</div>' +
