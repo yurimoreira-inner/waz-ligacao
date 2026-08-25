@@ -3,7 +3,7 @@
   'use strict';
   var script = document.currentScript;
   var ENDPOINT = (script && script.dataset.endpoint) || 'http://localhost:8787';
-  var MIC_RATE = 16000, OUT_RATE = 24000, ECHO_GATE = 0.035, VOICE_RATE = 1.0; // versão energética escolhida: ritmo natural
+  var MIC_RATE = 16000, OUT_RATE = 24000, ECHO_GATE = 0.028, VOICE_RATE = 1.0; // gate 0.028: interromper o Waz ficou mais fácil (echoCancellation nativo segura o eco)
 
   var $ = function (id) { return document.getElementById(id); };
   var hero = $('hero'), stage = $('stage'), caption = $('caption'), visual = $('visual'),
