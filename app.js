@@ -555,10 +555,16 @@
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
   var CAP_WORDS = 10, turnShownWords = 0;
+  var CAP_SILENCE = 0.014, capHang = 0; // legenda travada na VOZ real: não corre na frente nas pausas de respiração
   function renderCaption() {
     if (!outCtx || !capWords.length) return;
     var now = outCtx.currentTime, changed = false;
+    // detecta se o áudio está realmente soando agora (com um respiro de 180ms p/ micro-quedas não travarem)
+    if (outLevel() > CAP_SILENCE) capHang = now + 0.18;
+    var speaking = now < capHang;
     while (capWords.length && capWords[0].t <= now) {
+      // em silêncio (pausa), só revela se o áudio JÁ passou claramente da palavra (evita travar de vez)
+      if (!speaking && (now - capWords[0].t) < 0.5) break;
       var w = capWords.shift().w; turnShownWords++;
       if (capBreak || capLine.length >= CAP_WORDS) { capLine = []; capBreak = false; }
       capLine.push(w); changed = true;
