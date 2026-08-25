@@ -429,6 +429,9 @@
     micNode.port.onmessage = function (e) {
       if (!ws || ws.readyState !== 1) return;
       micLvl = rms(e.data);
+      // vigia armado pela VOZ LOCAL: se a sessão morrer no servidor, a transcrição não ecoa —
+      // mas o microfone sabe que a pessoa falou, e o resgate dispara mesmo assim
+      if (liveMode && micLvl > 0.035 && !isSpeaking()) { waitingReply = Date.now(); userAnswered = true; }
       if (!liveMode && !recording) return;
       if (liveMode && isSpeaking() && rms(e.data) < ECHO_GATE) return; // portão anti-eco só no modo ao vivo
       ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64(to16k(e.data, micCtx.sampleRate)), mimeType: 'audio/pcm;rate=16000' } } }));
@@ -498,9 +501,12 @@
       if (micCtx && micCtx.state === 'suspended') micCtx.resume().catch(function () {});
       if (audioEl && audioEl.paused && audioEl.srcObject) { var p = audioEl.play(); if (p && p.catch) p.catch(function () {}); }
     }
-    if (waitingReply && Date.now() - waitingReply > 10000 && ws && ws.readyState === 1) {
-      if (nudges < 2) { nudges++; waitingReply = Date.now(); ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
-      else { waitingReply = 0; reviveSession(); } // dois cutucões ignorados = sessão morta: renasce
+    if (waitingReply && ws && ws.readyState === 1) {
+      var dtw = Date.now() - waitingReply;
+      // um único cutucão aos 15s (cutucão extra vira mais um turno na fila e piora o estrangulamento);
+      // sem NADA aos 35s (resposta atrasada por cota chega em ~26s), renasce com o modelo alternativo
+      if (nudges === 0 && dtw > 15000) { nudges = 1; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
+      else if (dtw > 35000) { waitingReply = 0; reviveSession(); }
     }
     renderCaption(); requestAnimationFrame(tick);
   })(performance.now());
