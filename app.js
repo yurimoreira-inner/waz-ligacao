@@ -605,7 +605,7 @@
   // Fecha na marra, abre sessão NOVA (alternando o modelo) e recoloca o contexto pela transcrição.
   // Se nem isso salvar, entrega o WhatsApp — o lead nunca fica no silêncio.
   var revives = 0, altModel = false;
-  var ALT_MODEL = 'models/gemini-3.1-flash-live-preview';
+  var ALT_MODEL = 'models/gemini-2.5-flash-native-audio-preview-12-2025';
   function reviveSession() {
     if (!active || reconnecting) return;
     track('sessao_morta', { revives: revives });
