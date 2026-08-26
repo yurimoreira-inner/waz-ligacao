@@ -347,30 +347,37 @@
   }
   // Congruência INDEPENDENTE DE ORDEM: mostra o slide cujo GATILHO está sendo falado agora,
   // não o "próximo da fila". Assim nunca aparece o slide de um assunto durante a fala de outro.
-  function pumpVisualQueue(shownWords) {
-    if (!visQueue.length) return;
-    // 1) entre os slides na fila, escolhe o que tem GATILHO já alcançado pela fala (menor posição = falado primeiro)
-    var pickIdx = -1, pickKw = 1e9;
+  // Ancorado no ÁUDIO (a voz), NÃO na legenda: o insert entra quando a VOZ chega no gatilho
+  // (com leve antecipação), independente do quão atrás a legenda está. Roda todo frame no tick.
+  function pumpVisualQueue() {
+    if (!visQueue.length || !outCtx || !turnAudioStart) return;
+    var start = turnAudioStart, bufDur = playHead - start;
+    if (bufDur <= 0.3 || capTotalWt <= 0) return;
+    var audioWt = ((outCtx.currentTime - start) / bufDur) * capTotalWt; // posição da VOZ em peso (letras já faladas)
+    var LEAD = 7; // antecipa ~7 de peso (~3 letras): o visual entra junto/um tico ANTES da palavra dita
+    // 1) entre os slides na fila, escolhe o que tem GATILHO já alcançado pela VOZ (menor posição = falado primeiro)
+    var pickIdx = -1, pickCw = 1e9;
     for (var i = 0; i < visQueue.length; i++) {
       var q = visQueue[i];
       if (q.kw == null || q.kw < 0) q.kw = kwIndex(q.id, 0); // posição do assunto na fala inteira (recalcula enquanto não achou)
-      if (q.kw >= 0 && shownWords >= q.kw && q.kw < pickKw) { pickKw = q.kw; pickIdx = i; }
+      if (q.kw >= 0) {
+        var cwKw = turnWords[q.kw] ? turnWords[q.kw].cw : q.kw * 7;
+        if (audioWt >= cwKw - LEAD && cwKw < pickCw) { pickCw = cwKw; pickIdx = i; }
+      }
     }
     if (pickIdx >= 0) {
       if (lastVisMs && Date.now() - lastVisMs < MIN_SLIDE_MS) return; // cada slide fica um tempo MÍNIMO na tela antes do próximo
-      lastVisAt = shownWords; lastVisMs = Date.now();
+      lastVisAt = turnShownWords; lastVisMs = Date.now();
       showVisualNow(visQueue.splice(pickIdx, 1)[0].id); visShownInTurn++;
       return;
     }
-    // 2) fallback: slide SEM gatilho na fala (modelo parafraseou) — distribui pelo tempo, sem atropelar os com gatilho
+    // 2) fallback: slide SEM gatilho na fala (modelo parafraseou) — distribui pelo tempo do ÁUDIO
     var noKw = -1;
     for (var j = 0; j < visQueue.length; j++) { if (visQueue[j].kw < 0) { noKw = j; break; } }
     if (noKw >= 0) {
-      var total = turnWords.length || 1;
-      var target = Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
-      if (lastVisAt) target = Math.max(target, lastVisAt + 12);
+      var targetWt = ((visShownInTurn + 0.5) / Math.max(1, visTurnTotal)) * capTotalWt;
       if (lastVisMs && Date.now() - lastVisMs < MIN_SLIDE_MS) return; // respeita o tempo mínimo também no fallback
-      if (shownWords >= target) { lastVisAt = shownWords; lastVisMs = Date.now(); showVisualNow(visQueue.splice(noKw, 1)[0].id); visShownInTurn++; }
+      if (audioWt >= targetWt) { lastVisAt = turnShownWords; lastVisMs = Date.now(); showVisualNow(visQueue.splice(noKw, 1)[0].id); visShownInTurn++; }
     }
   }
   var VIS_ALIAS = { funcoes: 'funcao_qualificacao', funcao: 'funcao_qualificacao', crm: 'crm_funil', comparativo: 'comparativo_waz', demo: 'demo_pergunta', demonstracao: 'demo_pergunta', pilares: 'pilar_velocidade', preco_waz: 'preco', precos: 'preco', valor: 'preco', garantia: 'preco', resultado: 'resultados', casos: 'resultados', cases: 'resultados', depoimento: 'depoimentos', autoridade: 'quem_esta_por_tras', squad: 'quem_esta_por_tras', calendario: 'agendar', insight: 'insight_5min' };
@@ -597,7 +604,7 @@
       if (nudges === 0 && dtw > 15000) { nudges = 1; ws.send(JSON.stringify({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'O visitante continua aí, esperando. Retome de onde parou, em uma frase.' }] }], turnComplete: true } })); }
       else if (dtw > 35000) { waitingReply = 0; reviveSession(); }
     }
-    renderCaption(); requestAnimationFrame(tick);
+    renderCaption(); pumpVisualQueue(); requestAnimationFrame(tick);
   })(performance.now());
 
   // ---------- sessão ----------
@@ -655,7 +662,6 @@
       if (/[.!?…,;:]["”)]?$/.test(head.w)) capBreak = true;   // pontuação fecha o bloco
     }
     if (changed) {
-      pumpVisualQueue(turnShownWords);
       caption.classList.remove('status');
       caption.innerHTML = '<span>' + capLine.map(function (x, i) {
         return '<em' + (i === capLine.length - 1 ? ' class="new"' : '') + '>' + esc(x) + '</em>';
