@@ -325,17 +325,32 @@
     }
     return -1;
   }
+  // Congruência INDEPENDENTE DE ORDEM: mostra o slide cujo GATILHO está sendo falado agora,
+  // não o "próximo da fila". Assim nunca aparece o slide de um assunto durante a fala de outro.
   function pumpVisualQueue(shownWords) {
     if (!visQueue.length) return;
-    var head = visQueue[0];
-    var total = turnWords.length || 1;
-    // 1º: palavra-gatilho (sincronia real com o assunto); busca sempre À FRENTE do último slide mostrado
-    if (head.kw == null || head.kw < lastVisAt) head.kw = kwIndex(head.id, lastVisAt);
-    var target, gap;
-    if (head.kw != null && head.kw >= 0) { target = head.kw; gap = 5; }
-    else { target = head.at != null ? head.at : Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total)); gap = 10; }
-    if (lastVisAt) target = Math.max(target, lastVisAt + gap); // respiro mínimo entre slides
-    if (shownWords >= target) { lastVisAt = shownWords; showVisualNow(visQueue.shift().id); visShownInTurn++; }
+    // 1) entre os slides na fila, escolhe o que tem GATILHO já alcançado pela fala (menor posição = falado primeiro)
+    var pickIdx = -1, pickKw = 1e9;
+    for (var i = 0; i < visQueue.length; i++) {
+      var q = visQueue[i];
+      if (q.kw == null || q.kw < 0) q.kw = kwIndex(q.id, 0); // posição do assunto na fala inteira (recalcula enquanto não achou)
+      if (q.kw >= 0 && shownWords >= q.kw && q.kw < pickKw) { pickKw = q.kw; pickIdx = i; }
+    }
+    if (pickIdx >= 0) {
+      if (lastVisAt && shownWords - lastVisAt < 3) return; // respiro: nunca dois slides quase colados
+      lastVisAt = shownWords;
+      showVisualNow(visQueue.splice(pickIdx, 1)[0].id); visShownInTurn++;
+      return;
+    }
+    // 2) fallback: slide SEM gatilho na fala (modelo parafraseou) — distribui pelo tempo, sem atropelar os com gatilho
+    var noKw = -1;
+    for (var j = 0; j < visQueue.length; j++) { if (visQueue[j].kw < 0) { noKw = j; break; } }
+    if (noKw >= 0) {
+      var total = turnWords.length || 1;
+      var target = Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
+      if (lastVisAt) target = Math.max(target, lastVisAt + 12);
+      if (shownWords >= target) { lastVisAt = shownWords; showVisualNow(visQueue.splice(noKw, 1)[0].id); visShownInTurn++; }
+    }
   }
   var VIS_ALIAS = { funcoes: 'funcao_qualificacao', funcao: 'funcao_qualificacao', crm: 'crm_funil', comparativo: 'comparativo_waz', demo: 'demo_pergunta', demonstracao: 'demo_pergunta', pilares: 'pilar_velocidade', preco_waz: 'preco', precos: 'preco', valor: 'preco', garantia: 'preco', resultado: 'resultados', casos: 'resultados', cases: 'resultados', depoimento: 'depoimentos', autoridade: 'quem_esta_por_tras', squad: 'quem_esta_por_tras', calendario: 'agendar', insight: 'insight_5min' };
   function normalizeVisId(id) {
@@ -822,8 +837,8 @@
     setTimeout(function () {
       visual.innerHTML =
         '<div class="cal-final">' +
-          '<div class="cal-head"><div class="cal-h1">Falta só marcar seu horário 🎯</div>' +
-          '<div class="cal-h2">Escolha abaixo o melhor dia e horário para uma conversa de 30 a 40 minutos com um especialista do nosso time. Ele vai te mostrar o Waz rodando na SUA operação e tirar as últimas dúvidas.</div></div>' +
+          '<div class="cal-head"><div class="cal-h1">O próximo passo é agendar sua reunião 🎯</div>' +
+          '<div class="cal-h2">Escolha aqui embaixo o melhor dia e horário para você conversar com o nosso especialista. Nessa conversa de 30 a 40 minutos ele vai te mostrar o Waz rodando na SUA operação e tirar todas as suas dúvidas.</div></div>' +
           '<div class="cal-wrap"><div id="cal-inline" class="cal-inline"></div>' +
           '<div class="cal-fail-msg">O calendário demorou a carregar. Toque no botão abaixo:</div>' +
           '<a class="cal-fallback" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Abrir o calendário</a></div>' +
