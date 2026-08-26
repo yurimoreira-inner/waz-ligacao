@@ -277,7 +277,7 @@
   VIS.comparativo_waz = cmpSlide(true);
 
   // Vários slides na mesma fala: em vez de pular todos, distribui ao longo das palavras daquela fala.
-  var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false, lastVisAt = 0, lastVisMs = 0, MIN_SLIDE_MS = 2600;
+  var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false, lastVisAt = 0, lastVisMs = 0, MIN_SLIDE_MS = 2600, visTimer = null;
   var VIS_IMEDIATOS = { nenhum: 1, agendar: 1, whatsapp: 1, instagram: 1 };
   function queueVisual(id) {
     // a trava do Pitch conta a CHAMADA da ferramenta (a exibição pode atrasar alguns segundos)
@@ -401,8 +401,9 @@
     if (confirmMode && id !== 'agendar' && id !== 'whatsapp') { pendingVisual = id; return; } // cartão de dados na tela: nada passa por cima até confirmar
     if (!options.classList.contains('hidden') && !spokeSinceOptions && !confirmMode) { pendingVisual = id; return; }
     if (spokeSinceOptions && !confirmMode) hideOptions();
-    visual.classList.remove('show');
-    setTimeout(function () {
+    clearTimeout(visTimer);
+    var jaVisivel = visual.classList.contains('show'); // já tem slide na tela? então TROCA na hora (sem piscar pro nada)
+    var render = function () {
       visual.innerHTML = typeof VIS[id] === 'function' ? VIS[id]() : VIS[id];
       var car = visual.querySelector('.carousel');
       if (car) car.addEventListener('scroll', function () {
@@ -417,7 +418,9 @@
         confirmMode = false; pendingVisual = null; hideOptions();
       }
       if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); showTyping(); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
-    }, 150);
+    };
+    if (jaVisivel) { render(); }                    // slide→slide: swap instantâneo, sem gap em branco
+    else { visual.classList.remove('show'); visTimer = setTimeout(render, 30); } // nada→slide: fade-in suave
   }
 
   // ---------- botões de resposta ----------
