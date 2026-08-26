@@ -564,13 +564,24 @@
   }
   function stopPlayback() { capLastT = 0; turnAudioStart = 0; turnWords = []; visQueue = []; visShownInTurn = 0; visTurnTotal = 0; turnLive = false; lastVisAt = 0; sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); sources = []; playHead = 0; }
 
-  // ---------- rosto fixo; só as ondas indicam a fala ----------
-  var wasSpeaking = false, lastCtxKick = 0, nudges = 0;
+  // ---------- rosto fixo; as ondas REAGEM à amplitude da voz do Waz ----------
+  var wasSpeaking = false, lastCtxKick = 0, nudges = 0, ringAmp = 0, waveRings = null;
   (function tick(now) {
     now = now || performance.now();
     var sp = !!isSpeaking();
     avatar.classList.toggle('speaking', sp);
     if (sp !== wasSpeaking) { wasSpeaking = sp; if (!sp && visQueue.length) { turnLive = false; visShownInTurn = 0; var lastQ = visQueue[visQueue.length - 1].id; visQueue = []; showVisualNow(lastQ); } else if (!sp) { turnLive = false; visShownInTurn = 0; } }
+    // ONDAS SONORAS reativas: raio e brilho seguem a amplitude REAL da voz (outLevel), com ripple contínuo
+    if (!waveRings) waveRings = avatar.querySelectorAll('.ring');
+    var alvo = sp ? Math.min(1, outLevel() * 8) : 0;              // amplitude normalizada (0..1)
+    ringAmp += (alvo - ringAmp) * (alvo > ringAmp ? 0.5 : 0.12);  // sobe rápido, desce suave (parece voz)
+    for (var ri = 0; ri < waveRings.length; ri++) {
+      var ph = (((now / 1000) + ri * 0.66) % 2) / 2;              // fase 0..1, escalonada entre os anéis
+      var sc = 1 + ph * (0.12 + ringAmp * 0.62);                   // expande mais quando fala mais alto
+      var op = (1 - ph) * (0.06 + ringAmp * 0.6);                  // some no fim; brilho segue a voz
+      waveRings[ri].style.transform = 'scale(' + sc.toFixed(3) + ')';
+      waveRings[ri].style.opacity = op.toFixed(3);
+    }
     updateMicChip(now);
     // anti-congelamento: contextos de áudio suspensos (interrupção do iOS, troca de app) são religados sozinhos
     if (active && now - lastCtxKick > 1500) {
