@@ -126,8 +126,10 @@
     var q = new URLSearchParams();
     if (leadData.nome) q.set('name', leadData.nome);
     if (leadData.email) q.set('email', leadData.email);
-    if (leadData.whatsapp) { q.set('attendeePhoneNumber', '+55' + leadData.whatsapp.replace(/\D/g, '')); q.set('phone', '+55' + leadData.whatsapp.replace(/\D/g, '')); }
-    q.set('notes', 'Lead da apresentação do Waz' + (leadData.empresa ? ' · ' + leadData.empresa : ''));
+    if (leadData.empresa) q.set('Empresa', leadData.empresa);
+    if (leadData.whatsapp) q.set('attendeePhoneNumber', '+55' + leadData.whatsapp.replace(/\D/g, ''));
+    q.set('title', 'Apresentação do Waz' + (leadData.empresa ? ' — ' + leadData.empresa : ''));
+    q.set('notes', leadData.segmento ? 'Segmento: ' + leadData.segmento : 'Lead da apresentação do Waz');
     return CAL_URL + '?' + q.toString();
   }
   VIS.agendar = function () {
@@ -141,9 +143,27 @@
     (function (C, A, L) { var p = function (a, ar) { a.q.push(ar); }; var d = C.document; C.Cal = C.Cal || function () { var cal = C.Cal, ar = arguments; if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement('script')).src = A; cal.loaded = true; } if (ar[0] === L) { var api = function () { p(api, arguments); }, namespace = ar[1]; api.q = api.q || []; if (typeof namespace === 'string') { cal.ns[namespace] = cal.ns[namespace] || api; p(cal.ns[namespace], ar); p(cal, ['initNamespace', namespace]); } else p(cal, ar); return; } p(cal, ar); }; })(window, 'https://app.cal.com/embed/embed.js', 'init');
     // namespace novo a cada montagem: garante que o embed nasce com os dados JÁ confirmados do lead
     var ns = 'waz' + (++calMounts);
+    // nomes EXATOS dos campos da agenda squad-vendas/demo (validados): name, email, Empresa, attendeePhoneNumber, title, notes
+    var phone = leadData.whatsapp ? '+55' + leadData.whatsapp.replace(/\D/g, '') : '';
+    var notes = leadData.segmento ? 'Segmento: ' + leadData.segmento : 'Lead da apresentação do Waz';
+    var titulo = 'Apresentação do Waz' + (leadData.empresa ? ' — ' + leadData.empresa : '');
+    // pré-preenchimento pelo config — só campos PREENCHIDOS (string vazia atrapalha campos do Cal.com)
+    var pre = { theme: 'light', notes: notes, title: titulo };
+    if (leadData.nome) pre.name = leadData.nome;
+    if (leadData.email) pre.email = leadData.email;
+    if (leadData.empresa) pre.Empresa = leadData.empresa; // campo customizado obrigatório da agenda
+    if (phone) { pre.attendeePhoneNumber = phone; pre.smsReminderNumber = phone; }
+    // REFORÇO por query na calLink: é o caminho comprovado que prefilla todos os campos do embed
+    var qs = [];
+    if (leadData.nome) qs.push('name=' + encodeURIComponent(leadData.nome));
+    if (leadData.email) qs.push('email=' + encodeURIComponent(leadData.email));
+    if (leadData.empresa) qs.push('Empresa=' + encodeURIComponent(leadData.empresa));
+    if (phone) qs.push('attendeePhoneNumber=' + encodeURIComponent(phone));
+    qs.push('title=' + encodeURIComponent(titulo));
+    qs.push('notes=' + encodeURIComponent(notes));
+    var link = 'squad-vendas/demo?' + qs.join('&');
     window.Cal('init', ns, { origin: 'https://app.cal.com' });
-    window.Cal.ns[ns]('inline', { elementOrSelector: '#cal-inline', calLink: 'squad-vendas/demo', layout: 'month_view',
-      config: { name: leadData.nome || '', email: leadData.email || '', attendeePhoneNumber: leadData.whatsapp ? '+55' + leadData.whatsapp.replace(/\D/g, '') : '', notes: 'Lead da apresentação do Waz' + (leadData.empresa ? ' · ' + leadData.empresa : ''), theme: 'light' } });
+    window.Cal.ns[ns]('inline', { elementOrSelector: '#cal-inline', calLink: link, layout: 'month_view', config: pre });
     window.Cal.ns[ns]('ui', { hideEventTypeDetails: true, layout: 'month_view', cssVarsPerTheme: { light: { 'cal-brand': '#16a34a' } } });
     window.Cal.ns[ns]('on', { action: 'bookingSuccessful', callback: function () {
       track('calendar_booked');
@@ -731,7 +751,7 @@
         if (fc.name === 'mostrar_visual') { track('visual', { id: fc.args && fc.args.id }); showVisual(fc.args && fc.args.id); }
         else if (fc.name === 'perguntar_opcoes') showOptions(fc.args || {});
         else if (fc.name === 'confirmar_dados') showConfirm(fc.args || {});
-        else if (fc.name === 'registrar_contexto') { var a = fc.args || {}; leadData.empresa = a.empresa || leadData.empresa; leadData.nome = a.nome || leadData.nome; if (a.whatsapp) leadData.whatsapp = String(a.whatsapp).replace(/\D/g, ''); if (a.email) leadData.email = a.email; track('contexto', a); }
+        else if (fc.name === 'registrar_contexto') { var a = fc.args || {}; leadData.empresa = a.empresa || leadData.empresa; leadData.nome = a.nome || leadData.nome; if (a.segmento) leadData.segmento = a.segmento; if (a.whatsapp) leadData.whatsapp = String(a.whatsapp).replace(/\D/g, ''); if (a.email) leadData.email = a.email; track('contexto', a); }
         else if (fc.name === 'registrar_lead') sendLead(fc.args || {});
         ws.send(JSON.stringify({ toolResponse: { functionResponses: [{ id: fc.id, name: fc.name, response: { result: 'ok' } }] } }));
       });
