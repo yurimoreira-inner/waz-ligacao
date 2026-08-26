@@ -115,7 +115,7 @@
       '<div class="quote">“O cliente não consegue perceber que tá falando com uma IA. Realmente é um vendedor.”<footer>Ariane Lima · Gerente Comercial, Brasil Grãos</footer></div>',
     ]),
   };
-  var slot = $('slot'), pendingVisual = null, confirmMode = false;
+  var slot = $('slot'), pendingVisual = null, confirmMode = false, encerrando = false;
   var shownSlides = {}, gateNudgeAt = 0, travaCount = 0;
   // Encaixa o conteúdo do palco no espaço disponível (sem rolagem): reduz a escala se precisar.
   function fitSlot(el) {
@@ -297,6 +297,9 @@
   var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false, lastVisAt = 0, lastVisMs = 0, MIN_SLIDE_MS = 2600, visTimer = null;
   var VIS_IMEDIATOS = { nenhum: 1, agendar: 1, whatsapp: 1, instagram: 1 };
   function queueVisual(id) {
+    // ENCERRAMENTO: depois que os dados foram confirmados, a única tela permitida é o calendário.
+    // Bloqueia qualquer volta de insert (preço, comparativo etc.) que o modelo chame na despedida.
+    if (encerrando && id !== 'agendar') return;
     // a trava do Pitch conta a CHAMADA da ferramenta (a exibição pode atrasar alguns segundos)
     if (id && id !== 'nenhum' && !VIS_IMEDIATOS[id]) shownSlides[id] = true;
     if (VIS_IMEDIATOS[id]) { visQueue = []; showVisualNow(id); return; }
@@ -480,6 +483,7 @@
       leadData = { nome: $('cf-nome').value.trim(), empresa: $('cf-empresa').value.trim(), email: $('cf-email').value.trim(), whatsapp: $('cf-whats').value.replace(/\D/g, '') };
       track('dados_confirmados', leadData);
       confirmMode = false; // sem isso, todo slide seguinte ficava bloqueado como pendente
+      encerrando = true; visQueue = []; // ENCERRAMENTO: da confirmação em diante, nenhum insert reaparece (nem o preço) — só o calendário
       hideOptions();
       sendText('O lead confirmou que os dados estão corretos (nome=' + leadData.nome + '; empresa=' + leadData.empresa + '; email=' + leadData.email + '; whatsapp=' + leadData.whatsapp + '). AGORA faça a finalização FALADA: agradeça pelo tempo, diga que o próximo passo é ele escolher o melhor dia e horário pra conversar com o especialista do time, e uma despedida calorosa. Fale isso por INTEIRO. SÓ DEPOIS de terminar de falar, chame mostrar_visual("agendar"). Nunca chame agendar sem antes fazer essa finalização.', 'Dados confirmados');
     });
