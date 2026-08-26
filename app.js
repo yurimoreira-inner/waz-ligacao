@@ -474,7 +474,7 @@
       track('dados_confirmados', leadData);
       confirmMode = false; // sem isso, todo slide seguinte ficava bloqueado como pendente
       hideOptions();
-      sendText('Dados confirmados: nome=' + leadData.nome + '; empresa=' + leadData.empresa + '; email=' + leadData.email + '; whatsapp=' + leadData.whatsapp, 'Dados confirmados');
+      sendText('O lead confirmou que os dados estão corretos (nome=' + leadData.nome + '; empresa=' + leadData.empresa + '; email=' + leadData.email + '; whatsapp=' + leadData.whatsapp + '). AGORA faça a finalização FALADA: agradeça pelo tempo, diga que o próximo passo é ele escolher o melhor dia e horário pra conversar com o especialista do time, e uma despedida calorosa. Fale isso por INTEIRO. SÓ DEPOIS de terminar de falar, chame mostrar_visual("agendar"). Nunca chame agendar sem antes fazer essa finalização.', 'Dados confirmados');
     });
   }
   function hideOptions() { options.classList.add('hidden'); options.innerHTML = ''; options.style.transform = ''; options.style.marginBottom = ''; }
