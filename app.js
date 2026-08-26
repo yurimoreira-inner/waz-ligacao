@@ -145,7 +145,11 @@
     window.Cal.ns[ns]('inline', { elementOrSelector: '#cal-inline', calLink: 'squad-vendas/demo', layout: 'month_view',
       config: { name: leadData.nome || '', email: leadData.email || '', attendeePhoneNumber: leadData.whatsapp ? '+55' + leadData.whatsapp.replace(/\D/g, '') : '', notes: 'Lead da apresentação do Waz' + (leadData.empresa ? ' · ' + leadData.empresa : ''), theme: 'light' } });
     window.Cal.ns[ns]('ui', { hideEventTypeDetails: true, layout: 'month_view', cssVarsPerTheme: { light: { 'cal-brand': '#16a34a' } } });
-    window.Cal.ns[ns]('on', { action: 'bookingSuccessful', callback: function () { track('calendar_booked'); sendText('Acabei de agendar pelo calendário.', 'Agendado'); } });
+    window.Cal.ns[ns]('on', { action: 'bookingSuccessful', callback: function () {
+      track('calendar_booked');
+      if (callEnded) { var h = document.querySelector('.cal-final .cal-head'); if (h) h.innerHTML = '<div class="cal-h1">Tudo certo! ✅</div><div class="cal-h2">Seu horário com o especialista está confirmado. Você vai receber os detalhes por e-mail. Até lá!</div>'; }
+      else sendText('Acabei de agendar pelo calendário.', 'Agendado');
+    } });
     track('calendar_shown');
     // rede de segurança: se o embed não renderizar o iframe (script bloqueado, rede lenta),
     // destaca o link de fallback pra pessoa nunca ficar sem calendário.
@@ -346,6 +350,15 @@
         return;
       }
     }
+    // NOVO FLUXO: "agendar" não embeda o calendário durante a ligação. Encerra a conversa (o Waz
+    // para) e leva o lead, na mesma página, a uma tela dedicada só do calendário — ele decide lá.
+    if (id === 'agendar') {
+      var cn = $('cf-nome'), ce = $('cf-email'), cw = $('cf-whats'), cp = $('cf-empresa');
+      if (cn && ce && cw) leadData = { nome: cn.value.trim(), empresa: cp ? cp.value.trim() : (leadData.empresa || ''), email: ce.value.trim(), whatsapp: cw.value.replace(/\D/g, '') };
+      confirmMode = false; pendingVisual = null;
+      finishToCalendar();
+      return;
+    }
     if (id && id.indexOf('demo_') === 0) { if (!confirmMode) hideOptions(); pendingVisual = null; showDemo(id); return; }
     demoStage = -1;
     if (!id || id === 'nenhum' || !VIS[id]) { visual.classList.remove('show'); stage.classList.remove('compact'); pendingVisual = null; return; }
@@ -457,7 +470,7 @@
     var src = outCtx.createBufferSource(); src.buffer = buf; src.playbackRate.value = VOICE_RATE; src.connect(analyser || outCtx.destination);
     var now = outCtx.currentTime;
     if (playHead < now + 0.05) { // novo turno de fala do Waz
-      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0; parenDepth = 0;
+      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0; parenDepth = 0; capTotalWt = 0;
       turnLive = true; visShownInTurn = 0; lastVisAt = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; q.kw = null; q.scanned = 0; }); // nova fala: âncoras e gatilhos antigos não valem mais
       if (spokeSinceOptions) { // a pessoa respondeu por voz: limpa perguntas antigas — MAS nunca o cartão de confirmação
         if (!options.classList.contains('hidden') && !confirmMode) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
@@ -465,7 +478,6 @@
       }
     }
     src.start(playHead); playHead += buf.duration / VOICE_RATE; sources.push(src);
-    retimeCaption();
     src.onended = function () { sources = sources.filter(function (s) { return s !== src; }); };
   }
   var analyser = null, anBuf = null, mediaDest = null, audioEl = null;
@@ -527,8 +539,10 @@
   // Cada palavra recebe um instante na linha do tempo do player (outCtx) e aparece quando o som chega nela.
   var capWords = [], capLine = [], capLastT = 0, capBreak = false, SEC_PER_WORD = 0.30;
   function fixName(t) { t = t.replace(/\s*[—–]\s*/g, ' '); t = t.replace(/\b(mostrar_visual|registrar_contexto|registrar_lead|confirmar_dados)\s*\(?[^)\s]*\)?;?/g, ' '); t = t.replace(/\b[a-z]+_[a-z]+\s*\(\s*["']?[a-z_]*["']?\s*\)\s*;?/gi, ' '); t = t.replace(/\b(funcao|comparativo|insight|pilar|demo|crm)_[a-z_]+\b/g, ' '); t = t.replace(/[(\[](?:risad|riso|sorri|pausa|tom |suspir)[^)\]]*[)\]]/gi, ' '); t = t.replace(/<ctrl\d+>/gi, ' '); return t.replace(/\b[UuVvOo]+[oóôáa]?[zs]\b/g, function (m) { return /^(os|us|oz|vaz|vos|voz|vez)$/i.test(m) && !/^[UuOo]/.test(m) ? m : (/^(u[oóôáa][zs]|v[óô][zs]|oo[zs]|uaz|uos)$/i.test(m) ? 'Waz' : m); }); }
-  var turnAudioStart = 0, turnWords = [], CAP_LAG = 0.25; // atraso pequeno: o texto costuma chegar antes do som
+  var turnAudioStart = 0, turnWords = [];
   var parenDepth = 0; // anotações do transcritor como "(risos)" chegam fatiadas no streaming: filtro com estado
+  var capTotalWt = 0; // peso total (≈ letras) das palavras recebidas neste turno
+  function capWt(w) { return 2 + w.replace(/[^\wÀ-ÿ]/g, '').length + (/[.!?,;:…]$/.test(w) ? 3 : 0); }
   function feedCaption(chunk) {
     if (!outCtx) return;
     var words = fixName(chunk).split(/\s+/).filter(Boolean);
@@ -536,46 +550,34 @@
     words.forEach(function (w) {
       if (/^[(\[]/.test(w)) parenDepth++;
       if (parenDepth > 0) { if (/[)\]][.,!?]?$/.test(w)) parenDepth = Math.max(0, parenDepth - 1); return; } // direção interna: nunca vai pra legenda
-      var o = { w: w, t: Infinity }; turnWords.push(o); capWords.push(o);
+      var wt = capWt(w);
+      var o = { w: w, wt: wt, cw: capTotalWt }; capTotalWt += wt; // cw = peso acumulado ANTES desta palavra (posição relativa dela na fala)
+      turnWords.push(o); capWords.push(o);
     });
-    retimeCaption();
-  }
-  // Mapeamento proporcional: a i-ésima palavra do turno fica em início + (i / total) × duração de áudio já recebida.
-  // Recalculado a cada pacote de texto ou áudio, então se corrige sozinho quando um dos dois chega antes.
-  // Cada palavra recebe um instante = início + (peso acumulado antes dela) × ritmo.
-  // O RITMO é preso a uma faixa de fala humana (não à duração de áudio bufferizada, que chega
-  // em rajada e no início inflava o espaçamento → legenda muito atrasada nas primeiras palavras).
-  function retimeCaption() {
-    if (!outCtx || !turnWords.length) return;
-    var start = turnAudioStart || outCtx.currentTime;
-    var dur = Math.max(0, playHead - start);
-    var n = turnWords.length, weights = [], total = 0;
-    for (var i = 0; i < n; i++) { var wgt = 2 + turnWords[i].w.replace(/[^\wÀ-ÿ]/g, '').length + (/[.!?,;:…]$/.test(turnWords[i].w) ? 3 : 0); weights.push(wgt); total += wgt; }
-    // ritmo medido = áudio total ÷ peso total. Só é confiável quando texto e áudio cobrem a MESMA fala.
-    // Se o áudio bufferizado é bem maior do que o texto recebido cobriria em ritmo normal, estamos na
-    // RAJADA (áudio na frente do texto) → usa ritmo humano fixo, não o inflado. Senão, confia no medido.
-    var NORMAL = 0.06, measured = total > 0 ? dur / total : NORMAL;
-    var burst = total < 25 || dur > total * NORMAL * 1.4;
-    var rate = Math.max(0.04, Math.min(0.095, burst ? NORMAL : measured));
-    var acc = 0;
-    for (var j = 0; j < n; j++) { turnWords[j].t = start + acc * rate + CAP_LAG; acc += weights[j]; }
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
   var CAP_WORDS = 10, turnShownWords = 0;
-  var CAP_SILENCE = 0.014, capHang = 0; // legenda travada na VOZ real: não corre na frente nas pausas de respiração
+  var CAP_SILENCE = 0.014, capHang = 0;
+  // A legenda é PACEADA pela FRAÇÃO de áudio realmente tocada (ground-truth do player), não por
+  // estimativa de ritmo. Uma palavra só aparece quando o áudio já chegou na posição dela na fala →
+  // matematicamente nunca adianta. E segura nas pausas de respiração (silêncio) pra não vazar na frente.
   function renderCaption() {
     if (!outCtx || !capWords.length) return;
     var now = outCtx.currentTime, changed = false;
-    // detecta se o áudio está realmente soando agora (com um respiro de 180ms p/ micro-quedas não travarem)
-    if (outLevel() > CAP_SILENCE) capHang = now + 0.18;
+    var start = turnAudioStart || now;
+    var bufDur = playHead - start;                                   // áudio bufferizado deste turno
+    var playedFrac = bufDur > 0.3 ? Math.min(1, (now - start) / bufDur) : 0; // quanto do turno já tocou (0..1)
+    if (outLevel() > CAP_SILENCE) capHang = now + 0.18;              // respiro de 180ms p/ micro-quedas entre palavras
     var speaking = now < capHang;
-    while (capWords.length && capWords[0].t <= now) {
-      // em silêncio (pausa), só revela se o áudio JÁ passou claramente da palavra (evita travar de vez)
-      if (!speaking && (now - capWords[0].t) < 0.5) break;
-      var w = capWords.shift().w; turnShownWords++;
+    while (capWords.length) {
+      var head = capWords[0];
+      var wordFrac = capTotalWt > 0 ? (head.cw + head.wt * 0.5) / capTotalWt : 1; // posição (centro) da palavra na fala
+      if (wordFrac > playedFrac + 0.02) break;                       // nunca passa na frente do áudio já tocado
+      if (!speaking && wordFrac > playedFrac - 0.03) break;          // em pausa, só solta o que o áudio já passou claramente
+      capWords.shift(); turnShownWords++;
       if (capBreak || capLine.length >= CAP_WORDS) { capLine = []; capBreak = false; }
-      capLine.push(w); changed = true;
-      if (/[.!?…,;:]["”)]?$/.test(w)) capBreak = true;   // pontuação fecha o bloco
+      capLine.push(head.w); changed = true;
+      if (/[.!?…,;:]["”)]?$/.test(head.w)) capBreak = true;   // pontuação fecha o bloco
     }
     if (changed) {
       pumpVisualQueue(turnShownWords);
@@ -586,7 +588,7 @@
     }
   }
   var capLine = [];
-  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; turnWords = []; parenDepth = 0; }
+  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; turnWords = []; parenDepth = 0; capTotalWt = 0; }
   function setCaption(t, status) { resetCaption(); caption.textContent = t; caption.classList.toggle('status', !!status); }
   function setLive(on, label) { liveEl.classList.toggle('on', on); liveEl.querySelector('span').textContent = label; }
   var lvBars = liveEl.querySelectorAll('.lv b'), hearingUntil = 0;
@@ -772,6 +774,37 @@
       duracao_seg: Math.floor((Date.now() - startedAt) / 1000), lead: args, transcricao: transcript }) }).catch(function () {});
   }
 
+  // ---------- encerrar a ligação e levar ao calendário (tela dedicada, sem o Waz) ----------
+  var callEnded = false;
+  function finishToCalendar() {
+    // 1) garante o lead salvo pro follow-up, mesmo que a pessoa não agende (nome, empresa, segmento, whatsapp + resto)
+    sendLead({ nome: leadData.nome || '', empresa: leadData.empresa || '', email: leadData.email || '', whatsapp: leadData.whatsapp || '', classificacao: 'quente', resumo: 'Concluiu a apresentação por voz e foi direcionado ao calendário do especialista.' });
+    track('encaminhado_calendario', {});
+    // 2) encerra a VOZ (o Waz não continua), mas permanece na página, na tela do calendário
+    callEnded = true; active = false; connected = false; liveMode = false;
+    if (nudgeTimer) clearTimeout(nudgeTimer);
+    stopPlayback();
+    if (ws && ws.readyState <= 1) { try { ws.onclose = null; ws.close(); } catch (e) {} } ws = null;
+    if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
+    if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
+    // 3) troca o palco para a tela dedicada do calendário
+    hideOptions();
+    stage.classList.add('calendar-final'); stage.classList.remove('compact');
+    visual.classList.remove('show');
+    setTimeout(function () {
+      visual.innerHTML =
+        '<div class="cal-final">' +
+          '<div class="cal-head"><div class="cal-h1">Falta só marcar seu horário 🎯</div>' +
+          '<div class="cal-h2">Escolha abaixo o melhor dia e horário para uma conversa de 30 a 40 minutos com um especialista do nosso time. Ele vai te mostrar o Waz rodando na SUA operação e tirar as últimas dúvidas.</div></div>' +
+          '<div class="cal-wrap"><div id="cal-inline" class="cal-inline"></div>' +
+          '<div class="cal-fail-msg">O calendário demorou a carregar. Toque no botão abaixo:</div>' +
+          '<a class="cal-fallback" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Abrir o calendário</a></div>' +
+        '</div>';
+      visual.classList.add('show');
+      mountCal();
+    }, 150);
+  }
+
   // ---------- controles ----------
   function toggleLive(force) {
     liveMode = typeof force === 'boolean' ? force : !liveMode;
@@ -784,11 +817,11 @@
   sendBtn.addEventListener('click', sendTyped);
   textIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendTyped(); });
 
-  function endCompactOff() { stage.classList.remove('compact'); }
+  function endCompactOff() { stage.classList.remove('compact'); stage.classList.remove('calendar-final'); }
   function end(fromServer) {
     endCompactOff();
     if (active) track('encerrado', { por: fromServer ? 'servidor' : 'usuario', duracao_seg: Math.floor((Date.now() - startedAt) / 1000), transcricao: transcript });
-    active = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; travaCount = 0; revives = 0; altModel = false; reconnecting = false; reconAttempt = 0; reconNeedsContext = false; resumeHandle = null; waitingReply = 0; nudges = 0; pendingSends = []; if (nudgeTimer) clearTimeout(nudgeTimer);
+    active = false; callEnded = false; liveMode = false; recording = false; connected = false; micBlocked = false; micAsked = false; userAnswered = false; shownSlides = {}; gateNudgeAt = 0; travaCount = 0; revives = 0; altModel = false; reconnecting = false; reconAttempt = 0; reconNeedsContext = false; resumeHandle = null; waitingReply = 0; nudges = 0; pendingSends = []; if (nudgeTimer) clearTimeout(nudgeTimer);
     stopPlayback(); if (ws && ws.readyState <= 1) { try { ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }

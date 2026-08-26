@@ -119,6 +119,15 @@
   .cal-wrap.cal-failed .cal-fail-msg { display: block; text-align: center; font-size: 14px; color: var(--ink); padding: 18px 16px 10px; font-weight: 600; }
   .cal-wrap.cal-failed .cal-fallback { font-size: 16px; font-weight: 700; color: #fff; background: var(--green, #16a34a); border-radius: 12px; padding: 14px 20px; margin: 4px auto 16px; max-width: 320px; text-decoration: none; }
   /* modo compacto: quando o calendário está na tela, o topo encolhe pra dar espaço */
+  /* tela dedicada do calendário (ligação encerrada): esconde a UI de voz, calendário em tela cheia */
+  #stage.calendar-final .avatar-wrap, #stage.calendar-final .live, #stage.calendar-final .bars,
+  #stage.calendar-final #caption, #stage.calendar-final .bar { display: none !important; }
+  #stage.calendar-final #slot { margin-top: 10px; }
+  .cal-final { display: flex; flex-direction: column; height: 100%; }
+  .cal-head { flex: 0 0 auto; padding: 4px 4px 12px; }
+  .cal-h1 { font-size: 20px; font-weight: 800; color: var(--ink); }
+  .cal-h2 { font-size: 13.5px; line-height: 1.45; color: var(--muted2, #5c6664); margin-top: 6px; }
+  .cal-final .cal-wrap { flex: 1; min-height: 0; }
   #stage.compact .avatar-wrap { width: 56px; height: 56px; margin: 4px auto 4px; }
   #stage.compact .avatar { width: 56px; height: 56px; border-width: 2px; }
   #stage.compact .caption { height: 30px; font-size: 15px; font-weight: 600; }
@@ -266,6 +275,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608251605" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608261014" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>
