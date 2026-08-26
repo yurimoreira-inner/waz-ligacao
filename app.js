@@ -486,11 +486,12 @@
   function playChunk(data) {
     if (!outCtx) return;
     if (outCtx.state === 'suspended') outCtx.resume().catch(function () {});
+    capResetIfNewTurn(); // limpa a legenda no COMEÇO da fala (uma vez), antes de qualquer palavra/áudio dela
     var f = fromB64(data), buf = outCtx.createBuffer(1, f.length, OUT_RATE); buf.getChannelData(0).set(f);
     var src = outCtx.createBufferSource(); src.buffer = buf; src.playbackRate.value = VOICE_RATE; src.connect(analyser || outCtx.destination);
     var now = outCtx.currentTime;
-    if (playHead < now + 0.05) { // novo turno de fala do Waz
-      playHead = now + 0.25; turnAudioStart = playHead; turnWords = []; capWords = []; capLine = []; capBreak = false; turnShownWords = 0; parenDepth = 0; capTotalWt = 0;
+    if (playHead < now + 0.05) { // novo turno de ÁUDIO do Waz (define o marco de início do som)
+      playHead = now + 0.25; turnAudioStart = playHead;
       turnLive = true; visShownInTurn = 0; lastVisAt = 0; visTurnTotal = visQueue.length; visQueue.forEach(function (q) { q.at = null; q.kw = null; q.scanned = 0; }); // nova fala: âncoras e gatilhos antigos não valem mais
       if (spokeSinceOptions) { // a pessoa respondeu por voz: limpa perguntas antigas — MAS nunca o cartão de confirmação
         if (!options.classList.contains('hidden') && !confirmMode) { if (lastQuestion && curIn) track('resposta_opcao', { pergunta: lastQuestion, resposta: curIn.trim(), via: 'voz' }); hideOptions(); if (pendingVisual) { var pv = pendingVisual; pendingVisual = null; showVisual(pv); } }
@@ -562,9 +563,15 @@
   var turnAudioStart = 0, turnWords = [];
   var parenDepth = 0; // anotações do transcritor como "(risos)" chegam fatiadas no streaming: filtro com estado
   var capTotalWt = 0; // peso total (≈ letras) das palavras recebidas neste turno
+  var capNewTurn = true; // marca que a PRÓXIMA palavra/áudio começa uma fala nova → limpa a legenda uma vez
+  function capResetIfNewTurn() {
+    if (!capNewTurn) return; capNewTurn = false;
+    capWords = []; turnWords = []; capTotalWt = 0; capLine = []; capBreak = false; turnShownWords = 0; parenDepth = 0;
+  }
   function capWt(w) { return 2 + w.replace(/[^\wÀ-ÿ]/g, '').length + (/[.!?,;:…]$/.test(w) ? 3 : 0); }
   function feedCaption(chunk) {
     if (!outCtx) return;
+    capResetIfNewTurn(); // se é a 1ª palavra da fala, limpa a legenda ANTES de adicionar (o playChunk não apaga mais)
     var words = fixName(chunk).split(/\s+/).filter(Boolean);
     if (!words.length) return;
     words.forEach(function (w) {
@@ -608,7 +615,7 @@
     }
   }
   var capLine = [];
-  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; turnWords = []; parenDepth = 0; capTotalWt = 0; }
+  function resetCaption() { capWords = []; capLine = []; capLastT = 0; capBreak = false; turnWords = []; parenDepth = 0; capTotalWt = 0; capNewTurn = true; }
   function setCaption(t, status) { resetCaption(); caption.textContent = t; caption.classList.toggle('status', !!status); }
   function setLive(on, label) { liveEl.classList.toggle('on', on); liveEl.querySelector('span').textContent = label; }
   var lvBars = liveEl.querySelectorAll('.lv b'), hearingUntil = 0;
@@ -741,6 +748,7 @@
       if (sc.modelTurn) { waitingReply = 0; nudges = 0; }
       if (sc.turnComplete) {
         if (curOut) { push('waz', curOut); curOut = ''; } capLastT = 0;
+        capNewTurn = true; // a próxima fala do Waz recomeça a legenda do zero (sem apagar a atual, que ainda toca)
         if (transcript.length % 4 === 0) track('transcricao', { transcricao: transcript }); // salva a transcrição parcial (abandonos)
         if (!micAsked) { micAsked = true; askMicAfterOpening(); }
       }
