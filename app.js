@@ -300,6 +300,8 @@
     // a trava do Pitch conta a CHAMADA da ferramenta (a exibição pode atrasar alguns segundos)
     if (id && id !== 'nenhum' && !VIS_IMEDIATOS[id]) shownSlides[id] = true;
     if (VIS_IMEDIATOS[id]) { visQueue = []; showVisualNow(id); return; }
+    // o quadro de funcionalidades é um container que FICA na tela — mostra na hora que é chamado (sem esperar gatilho na fala)
+    if (id === 'funcionalidades') { lastVisMs = Date.now(); showVisualNow(id); return; }
     // âncora: a posição da fala em que o modelo chamou este slide (sincronia real);
     // chamadas feitas antes da fala começar ficam sem âncora e entram por distribuição
     var at = (turnLive && turnWords.length > 0) ? turnWords.length + 2 : null;
