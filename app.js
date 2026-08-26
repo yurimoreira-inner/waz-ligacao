@@ -277,7 +277,7 @@
   VIS.comparativo_waz = cmpSlide(true);
 
   // Vários slides na mesma fala: em vez de pular todos, distribui ao longo das palavras daquela fala.
-  var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false, lastVisAt = 0;
+  var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false, lastVisAt = 0, lastVisMs = 0, MIN_SLIDE_MS = 2600;
   var VIS_IMEDIATOS = { nenhum: 1, agendar: 1, whatsapp: 1, instagram: 1 };
   function queueVisual(id) {
     // a trava do Pitch conta a CHAMADA da ferramenta (a exibição pode atrasar alguns segundos)
@@ -337,8 +337,8 @@
       if (q.kw >= 0 && shownWords >= q.kw && q.kw < pickKw) { pickKw = q.kw; pickIdx = i; }
     }
     if (pickIdx >= 0) {
-      if (lastVisAt && shownWords - lastVisAt < 3) return; // respiro: nunca dois slides quase colados
-      lastVisAt = shownWords;
+      if (lastVisMs && Date.now() - lastVisMs < MIN_SLIDE_MS) return; // cada slide fica um tempo MÍNIMO na tela antes do próximo
+      lastVisAt = shownWords; lastVisMs = Date.now();
       showVisualNow(visQueue.splice(pickIdx, 1)[0].id); visShownInTurn++;
       return;
     }
@@ -349,7 +349,8 @@
       var total = turnWords.length || 1;
       var target = Math.max(4, Math.floor((visShownInTurn / Math.max(1, visTurnTotal)) * total));
       if (lastVisAt) target = Math.max(target, lastVisAt + 12);
-      if (shownWords >= target) { lastVisAt = shownWords; showVisualNow(visQueue.splice(noKw, 1)[0].id); visShownInTurn++; }
+      if (lastVisMs && Date.now() - lastVisMs < MIN_SLIDE_MS) return; // respeita o tempo mínimo também no fallback
+      if (shownWords >= target) { lastVisAt = shownWords; lastVisMs = Date.now(); showVisualNow(visQueue.splice(noKw, 1)[0].id); visShownInTurn++; }
     }
   }
   var VIS_ALIAS = { funcoes: 'funcao_qualificacao', funcao: 'funcao_qualificacao', crm: 'crm_funil', comparativo: 'comparativo_waz', demo: 'demo_pergunta', demonstracao: 'demo_pergunta', pilares: 'pilar_velocidade', preco_waz: 'preco', precos: 'preco', valor: 'preco', garantia: 'preco', resultado: 'resultados', casos: 'resultados', cases: 'resultados', depoimento: 'depoimentos', autoridade: 'quem_esta_por_tras', squad: 'quem_esta_por_tras', calendario: 'agendar', insight: 'insight_5min' };
@@ -599,23 +600,20 @@
   }
   // Legenda cinética: UMA linha, poucas palavras por vez, cada palavra entra no instante do som.
   var CAP_WORDS = 10, turnShownWords = 0;
-  var CAP_SILENCE = 0.014, capHang = 0;
-  // A legenda é PACEADA pela FRAÇÃO de áudio realmente tocada (ground-truth do player), não por
-  // estimativa de ritmo. Uma palavra só aparece quando o áudio já chegou na posição dela na fala →
-  // matematicamente nunca adianta. E segura nas pausas de respiração (silêncio) pra não vazar na frente.
+  // Cada palavra ganha um INSTANTE ABSOLUTO no relógio do player: início + (peso acumulado × seg/peso),
+  // onde seg/peso = áudio bufferizado ÷ texto recebido. A palavra aparece quando o relógio (currentTime,
+  // que anda com a reprodução) chega nela. Paceada pelo áudio real: não adianta, não trava, não despeja.
   function renderCaption() {
     if (!outCtx || !capWords.length) return;
     var now = outCtx.currentTime, changed = false;
     var start = turnAudioStart || now;
-    var bufDur = playHead - start;                                   // áudio bufferizado deste turno
-    var playedFrac = bufDur > 0.3 ? Math.min(1, (now - start) / bufDur) : 0; // quanto do turno já tocou (0..1)
-    if (outLevel() > CAP_SILENCE) capHang = now + 0.18;              // respiro de 180ms p/ micro-quedas entre palavras
-    var speaking = now < capHang;
+    var bufDur = playHead - start;
+    if (bufDur <= 0.3 || capTotalWt <= 0) return;          // ainda sem base pra posicionar
+    var perWt = bufDur / capTotalWt;                        // segundos por unidade de peso (letra)
     while (capWords.length) {
       var head = capWords[0];
-      var wordFrac = capTotalWt > 0 ? (head.cw + head.wt * 0.5) / capTotalWt : 1; // posição (centro) da palavra na fala
-      if (wordFrac > playedFrac + 0.02) break;                       // nunca passa na frente do áudio já tocado
-      if (!speaking && wordFrac > playedFrac - 0.03) break;          // em pausa, só solta o que o áudio já passou claramente
+      var wTime = start + head.cw * perWt;                  // instante em que essa palavra começa a ser falada
+      if (now + 0.12 < wTime) break;                        // ainda não chegou (0.12s de antecipação leve = legenda "colada")
       capWords.shift(); turnShownWords++;
       if (capBreak || capLine.length >= CAP_WORDS) { capLine = []; capBreak = false; }
       capLine.push(head.w); changed = true;
@@ -838,7 +836,7 @@
       visual.innerHTML =
         '<div class="cal-final">' +
           '<div class="cal-head"><div class="cal-h1">O próximo passo é agendar sua reunião 🎯</div>' +
-          '<div class="cal-h2">Escolha aqui embaixo o melhor dia e horário para você conversar com o nosso especialista. Nessa conversa de 30 a 40 minutos ele vai te mostrar o Waz rodando na SUA operação e tirar todas as suas dúvidas.</div></div>' +
+          '<div class="cal-h2">Escolha abaixo o melhor dia e horário para conversar com o nosso especialista.</div></div>' +
           '<div class="cal-wrap"><div id="cal-inline" class="cal-inline"></div>' +
           '<div class="cal-fail-msg">O calendário demorou a carregar. Toque no botão abaixo:</div>' +
           '<a class="cal-fallback" href="' + calLink() + '" target="_blank" rel="noopener" data-ev="calendar_click">Abrir o calendário</a></div>' +
