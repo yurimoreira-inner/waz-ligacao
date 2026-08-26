@@ -86,6 +86,14 @@
   .visual:not(.show) { display: none; }
   .visual.show { opacity: 1; max-height: none; }
   .visual img.full { width: 100%; display: block; }
+  ul.funcs { list-style: none; margin: 12px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  ul.funcs li { display: flex; gap: 13px; align-items: flex-start; opacity: 0; animation: funcin .4s ease forwards; }
+  @keyframes funcin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  ul.funcs .fi { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; background: var(--card-2, #f1f5f2); display: flex; align-items: center; justify-content: center; font-size: 19px; }
+  ul.funcs .ft { display: flex; flex-direction: column; gap: 2px; }
+  ul.funcs .ft b { font-size: 15.5px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+  ul.funcs .ft small { font-size: 13px; color: var(--muted2, #5c6664); line-height: 1.35; }
+  @media (prefers-reduced-motion: reduce) { ul.funcs li { animation: none; opacity: 1; } }
   .vpad { padding: 16px; }
   .h3 { margin: 4px 0 6px; font-size: 20px; line-height: 1.2; } .p { margin: 0; font-size: 15px; color: var(--muted); line-height: 1.45; }
   .big { padding: 22px 18px; text-align: center; } .big-ic { font-size: 44px; line-height: 1; margin-bottom: 10px; } .big h3 { margin: 6px 0 8px; font-size: 24px; line-height: 1.15; } .big p { margin: 0; font-size: 16px; color: var(--muted); line-height: 1.45; }
@@ -275,6 +283,6 @@
   </div>
 </section>
 
-<script src="app.js?v=202608261422" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
+<script src="app.js?v=202608261505" data-endpoint="https://eixodziurjftvemvbxof.supabase.co/functions/v1/waz-api" data-whatsapp="5511952134536"></script>
 </body>
 </html>

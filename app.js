@@ -59,6 +59,22 @@
   function funcaoSlide(i) {
     return '<div class="big"><div class="big-ic">' + FICONS[FKEYS[i]] + '</div><h3>' + F[i][0] + '</h3><p>' + F[i][1] + '</p></div>';
   }
+  // Quadro ÚNICO com as 6 funcionalidades em bullets — fica na tela enquanto o Waz fala essa parte do Pitch.
+  var FBULLETS = [
+    ['Qualificação de leads', 'Separa o curioso de quem compra — seu time só fala com quem está pronto.'],
+    ['Agendamento inteligente', 'Consulta a agenda, oferece horários e confirma sozinho, na conversa.'],
+    ['Envio de propostas', 'Monta e envia a proposta na hora, dentro do WhatsApp.'],
+    ['Pix e pagamento', 'Manda o Pix e reconhece o pagamento — venda de ponta a ponta.'],
+    ['Follow-up automático', 'Volta no cliente que sumiu, na hora certa, sem parecer cobrança.'],
+    ['Reativação de clientes', 'Puxa assunto com a base parada — cliente antigo vira receita nova.'],
+  ];
+  function funcionalidadesSlide() {
+    var h = '<div class="vpad"><div class="vtitle">O que o Waz faz por você</div><ul class="funcs">';
+    FBULLETS.forEach(function (b, i) {
+      h += '<li style="animation-delay:' + (i * 70) + 'ms"><span class="fi">' + FICONS[FKEYS[i]] + '</span><span class="ft"><b>' + b[0] + '</b><small>' + b[1] + '</small></span></li>';
+    });
+    return h + '</ul></div>';
+  }
   var CRM_ITENS = [['crm_funil', 'Funil visual em tempo real', 'Você abre o painel e sabe exatamente quem está pronto para fechar.'], ['crm_automatico', 'Leads movidos de fase automaticamente', 'Conforme a conversa avança, o lead muda de etapa sozinho.'], ['crm_historico', 'Histórico completo de cada conversa', 'Tudo que foi dito fica registrado, organizado por cliente.']];
   function crmSlide(k) {
     var it = CRM_ITENS.find(function (c) { return c[0] === k; });
@@ -275,6 +291,7 @@
 
   VIS.comparativo_sdr = cmpSlide(false);
   VIS.comparativo_waz = cmpSlide(true);
+  VIS.funcionalidades = funcionalidadesSlide;
 
   // Vários slides na mesma fala: em vez de pular todos, distribui ao longo das palavras daquela fala.
   var visQueue = [], visShownInTurn = 0, visTurnTotal = 0, turnLive = false, lastVisAt = 0, lastVisMs = 0, MIN_SLIDE_MS = 2600, visTimer = null;
@@ -291,6 +308,7 @@
   }
   // Congruência definitiva: cada slide tem palavras-gatilho; ele entra quando a FALA chega no tema.
   var VIS_KW = {
+    funcionalidades: /separo|curios|qualific|perguntas cert|o que eu faço|tudo que eu|deixa eu te mostrar|pra começar/,
     funcao_qualificacao: /curios|qualific|pronto pra comprar|pergunta[s]? cert/,
     funcao_agendamento: /agenda|horari|marcar/,
     funcao_propostas: /propost/,
@@ -366,8 +384,9 @@
   }
   function showVisual(id) { queueVisual(normalizeVisId(id)); }
   function pitchFeito() {
+    // Pitch = mostrou as funcionalidades (quadro único ou slides antigos) + o preço.
     var funcoes = 0; ['funcao_qualificacao', 'funcao_agendamento', 'funcao_propostas', 'funcao_pix', 'funcao_followup', 'funcao_reativacao'].forEach(function (k) { if (shownSlides[k]) funcoes++; });
-    return shownSlides.preco && funcoes >= 4;
+    return shownSlides.preco && (shownSlides.funcionalidades || funcoes >= 4);
   }
   function showVisualNow(id) {
     if (id) shownSlides[id] = true;
@@ -401,26 +420,20 @@
     if (confirmMode && id !== 'agendar' && id !== 'whatsapp') { pendingVisual = id; return; } // cartão de dados na tela: nada passa por cima até confirmar
     if (!options.classList.contains('hidden') && !spokeSinceOptions && !confirmMode) { pendingVisual = id; return; }
     if (spokeSinceOptions && !confirmMode) hideOptions();
-    clearTimeout(visTimer);
-    var jaVisivel = visual.classList.contains('show'); // já tem slide na tela? então TROCA na hora (sem piscar pro nada)
-    var render = function () {
-      visual.innerHTML = typeof VIS[id] === 'function' ? VIS[id]() : VIS[id];
-      var car = visual.querySelector('.carousel');
-      if (car) car.addEventListener('scroll', function () {
-        var i = Math.round(car.scrollLeft / (car.firstElementChild.offsetWidth + 12));
-        visual.querySelectorAll('.dots i').forEach(function (d, k) { d.classList.toggle('on', k === i); });
-      });
-      visual.classList.add('show');
-      if (id === 'agendar' || id === 'whatsapp') {
-        // confirmou por voz com o cartão aberto? colhe o que estiver nos campos (inclusive edições digitadas)
-        var cn = $('cf-nome'), ce = $('cf-email'), cw = $('cf-whats'), cp = $('cf-empresa');
-        if (cn && ce && cw) leadData = { nome: cn.value.trim(), empresa: cp ? cp.value.trim() : (leadData.empresa || ''), email: ce.value.trim(), whatsapp: cw.value.replace(/\D/g, '') };
-        confirmMode = false; pendingVisual = null; hideOptions();
-      }
-      if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); showTyping(); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
-    };
-    if (jaVisivel) { render(); }                    // slide→slide: swap instantâneo, sem gap em branco
-    else { visual.classList.remove('show'); visTimer = setTimeout(render, 30); } // nada→slide: fade-in suave
+    // render SÍNCRONO e sempre visível: sem setTimeout (que sumia com o slide) e sem piscar pro nada.
+    visual.innerHTML = typeof VIS[id] === 'function' ? VIS[id]() : VIS[id];
+    var car = visual.querySelector('.carousel');
+    if (car) car.addEventListener('scroll', function () {
+      var i = Math.round(car.scrollLeft / (car.firstElementChild.offsetWidth + 12));
+      visual.querySelectorAll('.dots i').forEach(function (d, k) { d.classList.toggle('on', k === i); });
+    });
+    visual.classList.add('show');
+    if (id === 'agendar' || id === 'whatsapp') {
+      var cn = $('cf-nome'), ce = $('cf-email'), cw = $('cf-whats'), cp = $('cf-empresa');
+      if (cn && ce && cw) leadData = { nome: cn.value.trim(), empresa: cp ? cp.value.trim() : (leadData.empresa || ''), email: ce.value.trim(), whatsapp: cw.value.replace(/\D/g, '') };
+      confirmMode = false; pendingVisual = null; hideOptions();
+    }
+    if (id === 'agendar') { visual.classList.add('tall'); stage.classList.add('compact'); showTyping(); mountCal(); } else { visual.classList.remove('tall'); stage.classList.remove('compact'); fitSlot(visual); }
   }
 
   // ---------- botões de resposta ----------
@@ -587,7 +600,13 @@
     if (!capNewTurn) return; capNewTurn = false;
     capWords = []; turnWords = []; capTotalWt = 0; capLine = []; capBreak = false; turnShownWords = 0; parenDepth = 0;
   }
-  function capWt(w) { return 2 + w.replace(/[^\wÀ-ÿ]/g, '').length + (/[.!?,;:…]$/.test(w) ? 3 : 0); }
+  // peso ≈ tempo de fala da palavra. Pontuação = PAUSA: pesa muito mais (o áudio silencia ali),
+  // pra legenda não disparar na frente nas pausas da abertura ("e, não...", "Beleza?", etc.).
+  function capWt(w) {
+    var letras = w.replace(/[^\wÀ-ÿ]/g, '').length;
+    var pausa = /[.!?…]$/.test(w) ? 11 : /[,;:]$/.test(w) ? 5 : 0; // fim de frase pausa mais que vírgula
+    return 2 + letras + pausa;
+  }
   function feedCaption(chunk) {
     if (!outCtx) return;
     capResetIfNewTurn(); // se é a 1ª palavra da fala, limpa a legenda ANTES de adicionar (o playChunk não apaga mais)
@@ -616,7 +635,7 @@
     while (capWords.length) {
       var head = capWords[0];
       var wTime = start + head.cw * perWt;                  // instante em que essa palavra começa a ser falada
-      if (now + 0.12 < wTime) break;                        // ainda não chegou (0.12s de antecipação leve = legenda "colada")
+      if (now - 0.1 < wTime) break;                         // revela ~0,1s DEPOIS do som chegar — legenda colada, nunca na frente
       capWords.shift(); turnShownWords++;
       if (capBreak || capLine.length >= CAP_WORDS) { capLine = []; capBreak = false; }
       capLine.push(head.w); changed = true;
@@ -821,20 +840,33 @@
   // ---------- encerrar a ligação e levar ao calendário (tela dedicada, sem o Waz) ----------
   var callEnded = false;
   function finishToCalendar() {
-    // 1) garante o lead salvo pro follow-up, mesmo que a pessoa não agende (nome, empresa, segmento, whatsapp + resto)
+    if (callEnded) return; // idempotente
+    // 1) garante o lead salvo pro follow-up, mesmo que a pessoa não agende
     sendLead({ nome: leadData.nome || '', empresa: leadData.empresa || '', email: leadData.email || '', whatsapp: leadData.whatsapp || '', classificacao: 'quente', resumo: 'Concluiu a apresentação por voz e foi direcionado ao calendário do especialista.' });
     track('encaminhado_calendario', {});
-    // 2) encerra a VOZ (o Waz não continua), mas permanece na página, na tela do calendário
-    callEnded = true; active = false; connected = false; liveMode = false;
+    // 2) não recebe mais nada, mas DEIXA A DESPEDIDA TERMINAR de tocar antes de trocar de tela
+    callEnded = true; active = false; liveMode = false;
     if (nudgeTimer) clearTimeout(nudgeTimer);
-    stopPlayback();
-    if (ws && ws.readyState <= 1) { try { ws.onclose = null; ws.close(); } catch (e) {} } ws = null;
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     if (micCtx) { micCtx.close().catch(function () {}); micCtx = null; }
-    // 3) troca o palco para a tela dedicada do calendário
-    hideOptions();
-    stage.classList.add('calendar-final'); stage.classList.remove('compact');
-    visual.classList.remove('show');
+    // espera o áudio da despedida acabar (com teto de 18s), aí abre o calendário
+    var abrir = function () {
+      connected = false;
+      stopPlayback();
+      if (ws && ws.readyState <= 1) { try { ws.onclose = null; ws.close(); } catch (e) {} } ws = null;
+      hideOptions();
+      stage.classList.add('calendar-final'); stage.classList.remove('compact');
+      visual.classList.remove('show');
+      renderCalendarioFinal();
+    };
+    var esperar = function () {
+      var restante = (outCtx && playHead > outCtx.currentTime) ? (playHead - outCtx.currentTime) : 0;
+      if (restante > 0.15 && restante < 25) { setTimeout(esperar, Math.min(restante * 1000 + 120, 1000)); return; }
+      abrir();
+    };
+    esperar();
+  }
+  function renderCalendarioFinal() {
     setTimeout(function () {
       visual.innerHTML =
         '<div class="cal-final">' +
